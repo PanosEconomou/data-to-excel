@@ -16,7 +16,6 @@ import threading
 import warnings
 import time
 
-
 # Απενεργοποίηση προειδοποιήσεων από matplotlib
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 
