@@ -9,12 +9,11 @@ import serial.tools.list_ports as list_ports
 from datetime import datetime
 import sys
 import time
-#--from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import threading
 import warnings
-import time
+import os
 
 # Απενεργοποίηση προειδοποιήσεων από matplotlib
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
@@ -47,18 +46,6 @@ def pick_baud_rate():
     answers = inquirer.prompt(questions)
     return answers['baudrate']
 
-# Εκτιμώμενος αριθμός εγγραφών
-#def pick_record_number():
-#    questions = [
-#        inquirer.List('records',
-#                      message="Επιλέξτε εκτιμώμενο πλήθος εγγραφών στο αρχείο",
-#                      choices=[5000, 10000, 50000, 100000, 200000, 500000],
-#                      default=10000
-#                      ),
-#    ]
-#    rate_selected = inquirer.prompt(questions)
-#    return rate_selected['records']
-
 # Επιλογή χρόνου για αποθήκευση
 def pick_time_save():
     questions = [
@@ -71,6 +58,37 @@ def pick_time_save():
     answers = inquirer.prompt(questions)
     return int(answers['time_save'])
 
+# Επιλογή τοποθεσίας εξόδου
+def pick_output_location():
+    questions = [inquirer.Path('file',
+                    message='Πού πρέπει να βρίσκεται το αρχείο καταγραφής;',
+                    default=os.path.join(os.getcwd(),"data_from_serial.xlsx"),
+                    path_type=inquirer.Path.FILE
+                ),]
+    path_selected = inquirer.prompt(questions)
+    path = os.path.abspath(os.path.expanduser(path_selected['file']))
+    if not path.endswith('.xlsx'):
+        if os.path.isdir(path):
+            path = os.path.join(path,"data_from_serial.xlsx") 
+        else:
+            path += '.xlsx'
+    if not os.path.exists(os.path.dirname(path)):
+        os.makedirs(os.path.dirname(path))
+    return path
+
+# Δημιουργία ή Άνοιγμα Αρχείου Excel
+def setup_excel(path):
+    try:
+        wb = openpyxl.load_workbook(path)
+        sheet = wb.active
+        print(f"Το αρχείο Excel '{path}' βρέθηκε και άνοιξε.")
+    except (FileNotFoundError, KeyError):
+        wb = Workbook()
+        sheet = wb.active
+        sheet.append(["Time", "Value"])  # Επικεφαλίδες στηλών
+        wb.save(path)
+        print(f"Δημιουργήθηκε νέο αρχείο Excel: '{path}'.")
+    return wb, sheet
 
 # Σύνδεση στη σειριακή θύρα
 def connect_to_serial(port, baudrate):
@@ -82,33 +100,20 @@ def connect_to_serial(port, baudrate):
         print(f"Αδυναμία σύνδεσης στη θύρα! Λεπτομέρειες: {e}")
         sys.exit()
 
-# Δημιουργία ή Άνοιγμα Αρχείου Excel
-def setup_excel():
-    try:
-        wb = openpyxl.load_workbook('data_from_serial.xlsx')
-        sheet = wb.active
-        print("Το αρχείο Excel βρέθηκε και άνοιξε.")
-    except (FileNotFoundError, KeyError):
-        wb = Workbook()
-        sheet = wb.active
-        sheet.append(["Time", "Value"])  # Επικεφαλίδες στηλών
-        wb.save('data_from_serial.xlsx')
-        print("Δημιουργήθηκε νέο αρχείο Excel.")
-    return wb, sheet
-
 # Επικύρωση δεδομένων πριν την καταγραφή
-def validate_and_save_data(sheet, data, wb):
-    try:
-        if data:
-            sheet.append([datetime.now().strftime('%Y-%m-%d %H:%M:%S'), data])
-        else:
-            print("Δεν ελήφθησαν δεδομένα.")
-    except Exception as e:
-        print(f"Σφάλμα κατά την καταγραφή δεδομένων: {e}")
+def validate_and_save_data(sheet, data):
+    if data:
+        sheet.append([datetime.now().strftime('%Y-%m-%d %H:%M:%S'), data])
+    else:
+        print("Δεν ελήφθησαν δεδομένα.")
 
 # Αποθήκευση αρχείου περιοδικά
-def save_periodically(wb):
-    wb.save('data_from_serial.xlsx')
+def save_periodically(wb, path):
+    try:
+        wb.save(path)
+        print(f"Το αρχείο '{path}' αποθηκεύτηκε.")
+    except Exception as e:
+        print(f"Σφάλμα κατά την αποθήκευση του αρχείου '{path}': {e}")
 
 # Δημιουργία γραφήματος σε πραγματικό χρόνο
 def animate(i, times, values, ax):
@@ -121,56 +126,27 @@ def animate(i, times, values, ax):
     ax.legend()
 
 # Καταγραφή δεδομένων σε ξεχωριστό νήμα
-def record_data(ser, sheet, wb, times, values, saving_time, stop_event):
-    last_save_time = time.time()  # Ξεκινάμε το χρονόμετρο από την αρχή
-    #--records_saved = 0
-    #----progress_bar = tqdm(total=records, desc="Ποσοστό καταγραφής", ncols=150, position=1)
-    last_display_time = time.time()
-
+def record_data(ser, sheet, wb, path, times, values, saving_time, stop_event):
+    last_save_time = time.time()
     print("\nΠατήστε Ctrl + C για να σταματήσετε την καταγραφή.")
-
     try:
-        while not stop_event.is_set():  # Συνεχίζει μέχρι να λάβει σήμα για να σταματήσει
+        while not stop_event.is_set():
             line = ser.readline().decode('utf-8', errors='ignore').strip()
-            if line:  # Αν δεν είναι κενό το data
-                validate_and_save_data(sheet, line, wb)
-                
-                # Πρόσθεση δεδομένων για το διάγραμμα
+            if line:
+                validate_and_save_data(sheet, line)
                 times.append(time.time())
                 values.append(line)
-                
-                # Αποθήκευση περιοδικά κάθε 20 εγγραφές
-                #if records_saved >= 20:
-                #    save_periodically(wb)
-                #    records_saved = 0
-                #else:
-                #    records_saved += 1
-
-                #Αποθήκευση κάθε X δευτερόλεπτα
                 if time.time() - last_save_time >= saving_time * 60:
-                    save_periodically(wb)  # Αποθήκευση
-                    last_save_time = time.time()  # Ενημέρωση του χρόνου τελευταίας αποθήκευσης
-                
+                    save_periodically(wb, path)
+                    last_save_time = time.time()
                 print(f"Τρέχουσα μέτρηση: {line}")
-                # Εμφάνιση της τρέχουσας μέτρησης στην κονσόλα κάθε 0.5 δευτερόλεπτο
-                #if time.time() - last_display_time > 0.5:
-                #    sys.stdout.write(f"\rΤρέχουσα μέτρηση: {line}")
-                #    sys.stdout.flush()
-                #    last_display_time = time.time()      
-                
-                #----progress_bar.update(1)  # Ενημέρωση μπάρας προόδου
-
     except KeyboardInterrupt:
         print("\nΔιακοπή από τον χρήστη.")
     except Exception as e:
         print(f"Σφάλμα: {e}")
     finally:
-        # Εξασφαλίζουμε ότι η αποθήκευση θα ολοκληρωθεί
-        print("\nΑποθήκευση τελευταίων δεδομένων πριν τον τερματισμό...")
-        save_periodically(wb)  # Διασφαλίζουμε ότι το τελευταίο αρχείο αποθηκεύεται
-        print("\nΤα δεδομένα αποθηκεύτηκαν στο αρχείο: data_from_serial.xlsx (στο φάκελο που βρίσκεται και η εφαρμογή αυτή). ")
-        print("Αν δεν διαγράψετε και δεν μετακινήσετε το αρχείο αυτό, η επόμενη καταγραφή θα συνεχιστεί από εκεί που σταμάτησε η τρέχουσα\n")
-
+        save_periodically(wb, path)
+        print(f"Ευχαριστούμε για τη χρήση της εφαρμογής αυτής.")
 
 # Κύριο πρόγραμμα
 if __name__ == "__main__":
@@ -179,35 +155,23 @@ if __name__ == "__main__":
 
     port = pick_port()
     baudrate = pick_baud_rate()
-    #--records = pick_record_number()
+    path = pick_output_location()
     saving_time = pick_time_save()
     ser = connect_to_serial(port, baudrate)
-    wb, sheet = setup_excel()
+    wb, sheet = setup_excel(path)
 
-    # Στοιχεία για το διάγραμμα
     times = []
     values = []
 
-    # Δημιουργία του διαγράμματος
     fig, ax = plt.subplots()
-    ani = FuncAnimation(fig, animate, fargs=(times, values, ax), interval=100)  # Αυξήσαμε το διάστημα ανανέωσης
+    ani = FuncAnimation(fig, animate, fargs=(times, values, ax), interval=100)
 
-    # Δημιουργία event για τον συγχρονισμό των νημάτων
     stop_event = threading.Event()
-
-    # Ξεκινάμε τη διαδικασία καταγραφής δεδομένων σε νέο νήμα
-    record_thread = threading.Thread(target=record_data, args=(ser, sheet, wb, times, values, saving_time, stop_event))
+    record_thread = threading.Thread(target=record_data, args=(ser, sheet, wb, path, times, values, saving_time, stop_event))
     record_thread.daemon = True
     record_thread.start()
 
     try:
-        plt.show()  # Εμφανίζει το διάγραμμα και περιμένει για νέες ενημερώσεις
+        plt.show()
     except KeyboardInterrupt:
-        stop_event.set()  # Σήμα για να σταματήσει το νήμα καταγραφής
-        print("\nΤο πρόγραμμα σταμάτησε.\n")
-        # Εξασφαλίζουμε ότι η αποθήκευση θα ολοκληρωθεί
-        print("\nΑποθήκευση τελευταίων δεδομένων πριν τον τερματισμό...")
-        save_periodically(wb)  # Διασφαλίζουμε ότι το τελευταίο αρχείο αποθηκεύεται
-        print("\nΤα δεδομένα αποθηκεύτηκαν στο αρχείο: data_from_serial.xlsx (στο φάκελο που βρίσκεται και η εφαρμογή αυτή). ")
-        print("Αν δεν διαγράψετε και δεν μετακινήσετε το αρχείο αυτό, η επόμενη καταγραφή θα συνεχιστεί από εκεί που σταμάτησε η τρέχουσα\n")
-
+        stop_event.set()
