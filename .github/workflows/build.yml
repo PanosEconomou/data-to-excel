@@ -33,7 +33,8 @@ jobs:
           arch -x86_64 curl -LO https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-x86_64.sh
           arch -x86_64 chmod +x Miniforge3-MacOSX-x86_64.sh
           arch -x86_64 ./Miniforge3-MacOSX-x86_64.sh -b -p ~/miniforge
-          arch -x86_64 source ~/miniforge/bin/activate
+          arch -x86_64 conda init
+          source ~/miniforge/bin/activate
           arch -x86_64 conda create -n x86_env python=3.9 -y
           arch -x86_64 conda activate x86_env
 
