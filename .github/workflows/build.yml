@@ -29,7 +29,9 @@ jobs:
       
     - name: Use x86 python instead
       if: ${{ (matrix.os == 'macos-latest') && (matrix.architecture == 'x86_64') }} 
-      run: arch -x86_64 /usr/local/bin/brew install python
+      run: |
+        export ARCHFLAGS="-arch x86_64"
+        arch -x86_64 python3 -c "import platform; print(platform.architecture())"
 
     - name: Install dependencies on Mac
       if: ${{ matrix.os == 'macos-latest' }}
