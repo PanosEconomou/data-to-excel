@@ -24,17 +24,18 @@ jobs:
 
     - name: Set up Python x64
       uses: actions/setup-python@v4
-      if: ${{ (matrix.os == 'macos-latest') && (matrix.architecture == 'x86_64') }} 
       with:
         python-version: '3.9'
         architecture: 'x64'
       
-    - name: Set up Python x86
+    - name: Set up Python
       uses: actions/setup-python@v4
-      if: ${{ ((matrix.os == 'macos-latest') && (matrix.architecture == 'arm64')) || (matrix.os != 'macos-latest') }} 
       with:
         python-version: '3.9'
       
+    - name: Use x86 python instead
+      if: ${{ (matrix.os == 'macos-latest') && (matrix.architecture == 'x86_64') }} 
+      run: arch -x86_64 /usr/local/bin/brew install python
 
     - name: Install dependencies on Mac
       if: ${{ matrix.os == 'macos-latest' }}
