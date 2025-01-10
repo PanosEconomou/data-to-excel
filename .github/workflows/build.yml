@@ -22,11 +22,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Set up Python
+    - name: Set up Python x64
       uses: actions/setup-python@v4
+      if: ${{ (matrix.os == 'macos-latest') && (matrix.architecture == x86_64) }} 
       with:
         python-version: '3.9'  # Replace with your Python version
-        architecture: ${{ matrix.architecture }}
+        arch: 'x64'
+      
+    - name: Set up Python x86
+      uses: actions/setup-python@v4
+      if: ${{ ((matrix.os == 'macos-latest') && (matrix.architecture == arm64)) || (matrix.os != 'macos-latest') }} 
+      with:
+        python-version: '3.9'  # Replace with your Python version
+        arch: 'x64'
+      
 
     - name: Install dependencies on Mac
       if: ${{ matrix.os == 'macos-latest' }}
