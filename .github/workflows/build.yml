@@ -33,7 +33,6 @@ jobs:
           echo "datas = copy_metadata('readchar')" >> hook-readchar.py
 
       - name: Build executable
-        if: ${{ matrix.os != 'macos-latest' }}
         run: |
           pyinstaller --onefile --clean --console --additional-hooks-dir=. BO-2-data-to-excel.py
 
