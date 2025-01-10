@@ -9,7 +9,7 @@ import serial.tools.list_ports as list_ports
 from datetime import datetime
 import sys
 import time
-from tqdm import tqdm
+#--from tqdm import tqdm
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import threading
@@ -48,16 +48,16 @@ def pick_baud_rate():
     return answers['baudrate']
 
 # Εκτιμώμενος αριθμός εγγραφών
-def pick_record_number():
-    questions = [
-        inquirer.List('records',
-                      message="Επιλέξτε εκτιμώμενο πλήθος εγγραφών στο αρχείο",
-                      choices=[5000, 10000, 50000, 100000, 200000, 500000],
-                      default=10000
-                      ),
-    ]
-    rate_selected = inquirer.prompt(questions)
-    return rate_selected['records']
+#def pick_record_number():
+#    questions = [
+#        inquirer.List('records',
+#                      message="Επιλέξτε εκτιμώμενο πλήθος εγγραφών στο αρχείο",
+#                      choices=[5000, 10000, 50000, 100000, 200000, 500000],
+#                      default=10000
+#                      ),
+#    ]
+#    rate_selected = inquirer.prompt(questions)
+#    return rate_selected['records']
 
 # Επιλογή χρόνου για αποθήκευση
 def pick_time_save():
@@ -123,8 +123,8 @@ def animate(i, times, values, ax):
 # Καταγραφή δεδομένων σε ξεχωριστό νήμα
 def record_data(ser, sheet, wb, times, values, saving_time, stop_event):
     last_save_time = time.time()  # Ξεκινάμε το χρονόμετρο από την αρχή
-    records_saved = 0
-    progress_bar = tqdm(total=records, desc="Ποσοστό καταγραφής", ncols=150, position=1)
+    #--records_saved = 0
+    #----progress_bar = tqdm(total=records, desc="Ποσοστό καταγραφής", ncols=150, position=1)
     last_display_time = time.time()
 
     print("\nΠατήστε Ctrl + C για να σταματήσετε την καταγραφή.")
@@ -151,13 +151,15 @@ def record_data(ser, sheet, wb, times, values, saving_time, stop_event):
                     save_periodically(wb)  # Αποθήκευση
                     last_save_time = time.time()  # Ενημέρωση του χρόνου τελευταίας αποθήκευσης
                 
+                print(f"Τρέχουσα μέτρηση: {line}")
                 # Εμφάνιση της τρέχουσας μέτρησης στην κονσόλα κάθε 0.5 δευτερόλεπτο
-                if time.time() - last_display_time > 0.5:
-                    sys.stdout.write(f"\rΤρέχουσα μέτρηση: {line}")
-                    sys.stdout.flush()
-                    last_display_time = time.time()      
+                #if time.time() - last_display_time > 0.5:
+                #    sys.stdout.write(f"\rΤρέχουσα μέτρηση: {line}")
+                #    sys.stdout.flush()
+                #    last_display_time = time.time()      
                 
-                progress_bar.update(1)  # Ενημέρωση μπάρας προόδου
+                #----progress_bar.update(1)  # Ενημέρωση μπάρας προόδου
+
     except KeyboardInterrupt:
         print("\nΔιακοπή από τον χρήστη.")
     except Exception as e:
@@ -177,7 +179,7 @@ if __name__ == "__main__":
 
     port = pick_port()
     baudrate = pick_baud_rate()
-    records = pick_record_number()
+    #--records = pick_record_number()
     saving_time = pick_time_save()
     ser = connect_to_serial(port, baudrate)
     wb, sheet = setup_excel()
