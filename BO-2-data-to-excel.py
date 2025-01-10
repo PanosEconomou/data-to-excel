@@ -51,7 +51,7 @@ def pick_baud_rate():
 def pick_record_number():
     questions = [
         inquirer.List('records',
-                      message="Επιλέξτε εκτιμώμενο πλήθος εγγραφών",
+                      message="Επιλέξτε εκτιμώμενο πλήθος εγγραφών στο αρχείο",
                       choices=[5000, 10000, 50000, 100000, 200000, 500000],
                       default=10000
                       ),
@@ -63,7 +63,7 @@ def pick_record_number():
 def pick_time_save():
     questions = [
         inquirer.List('time_save',
-                      message="Κάθε πόσα λεπτά να αποθηκεύεται το αρχείο;",
+                      message="Κάθε πόσα λεπτά να αποθηκεύονται οι μετρήσεις στ αρχείο;",
                       choices=[1, 5, 10, 30, 60, 90],
                       default=5
                       ),
@@ -167,12 +167,13 @@ def record_data(ser, sheet, wb, times, values, saving_time, stop_event):
         print("\nΑποθήκευση τελευταίων δεδομένων πριν τον τερματισμό...")
         save_periodically(wb)  # Διασφαλίζουμε ότι το τελευταίο αρχείο αποθηκεύεται
         print("\nΤα δεδομένα αποθηκεύτηκαν στο αρχείο: data_from_serial.xlsx (στο φάκελο που βρίσκεται και η εφαρμογή αυτή). ")
-        print("Αν δεν διαγράψετε και δεν μετακινήσετε το αρχείο αυτό, η επόμενη καταγραφή θα συνεχιστεί από εκεί που σταμάτησε η τρέχουσα")
+        print("Αν δεν διαγράψετε και δεν μετακινήσετε το αρχείο αυτό, η επόμενη καταγραφή θα συνεχιστεί από εκεί που σταμάτησε η τρέχουσα\n")
 
 
 # Κύριο πρόγραμμα
 if __name__ == "__main__":
-    print("\n\n\nData From Serial to .xlsx (Vassilis Economou v.1.0.0)\n")
+    print("\n\n\nData From Serial to .xlsx (Vassilis Economou v.1.0.0)")
+    print("______________________________________________________________\n")
 
     port = pick_port()
     baudrate = pick_baud_rate()
