@@ -58,10 +58,11 @@ def pick_time_save():
     answers = inquirer.prompt(questions)
     return int(answers['time_save'])
 
+
 # Επιλογή τοποθεσίας εξόδου
 def pick_output_location():
     questions = [inquirer.Path('file',
-                    message='Πού πρέπει να βρίσκεται το αρχείο καταγραφής;',
+                    message='Αρχείο καταγραφής',
                     default=os.path.join(os.getcwd(),"data_from_serial.xlsx"),
                     path_type=inquirer.Path.FILE
                 ),]
@@ -155,10 +156,11 @@ if __name__ == "__main__":
 
     port = pick_port()
     baudrate = pick_baud_rate()
-    path = pick_output_location()
     saving_time = pick_time_save()
-    ser = connect_to_serial(port, baudrate)
+    path = pick_output_location()
     wb, sheet = setup_excel(path)
+    ser = connect_to_serial(port, baudrate)
+
 
     times = []
     values = []
@@ -175,5 +177,6 @@ if __name__ == "__main__":
         plt.show()
     except KeyboardInterrupt:
         save_periodically(wb, path)
-        print("_______________________")
+        print("_____________")
+        print("Ευχαριστούμε.")
         stop_event.set()
