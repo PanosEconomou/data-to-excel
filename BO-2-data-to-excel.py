@@ -174,4 +174,6 @@ if __name__ == "__main__":
     try:
         plt.show()
     except KeyboardInterrupt:
+        save_periodically(wb, path)
+        print("_______________________")
         stop_event.set()
