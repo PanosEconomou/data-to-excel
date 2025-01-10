@@ -49,12 +49,12 @@ jobs:
     - name: Build executable on Mac
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
-        pyinstaller --onefile --console --target-arch=${{ matrix.architecture }} --additional-hooks-dir=. BO-2-data-to-excel.py
+        pyinstaller --onefile --clean --console --target-arch=${{ matrix.architecture }} --additional-hooks-dir=. BO-2-data-to-excel.py
     
     - name: Build executable on Windows/Linux
       if: ${{ matrix.os != 'macos-latest' }}
       run: |
-        pyinstaller --onefile --console --additional-hooks-dir=. BO-2-data-to-excel.py
+        pyinstaller --onefile --clean --console --additional-hooks-dir=. BO-2-data-to-excel.py
         
     - name: Check if executable exists
       run: ls -l dist/
