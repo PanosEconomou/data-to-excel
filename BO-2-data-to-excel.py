@@ -8,7 +8,7 @@ import inquirer
 import serial.tools.list_ports as list_ports
 from datetime import datetime
 import sys
-import time
+#import time
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import threading
@@ -46,18 +46,6 @@ def pick_baud_rate():
     answers = inquirer.prompt(questions)
     return answers['baudrate']
 
-# Επιλογή χρόνου για αποθήκευση
-def pick_time_save():
-    questions = [
-        inquirer.List('time_save',
-                      message="Κάθε πόσα λεπτά να αποθηκεύονται οι μετρήσεις στ αρχείο;",
-                      choices=[1, 5, 10, 30, 60, 90],
-                      default=5
-                      ),
-    ]
-    answers = inquirer.prompt(questions)
-    return int(answers['time_save'])
-
 
 # Επιλογή τοποθεσίας εξόδου
 def pick_output_location():
@@ -77,6 +65,8 @@ def pick_output_location():
         os.makedirs(os.path.dirname(path))
     return path
 
+
+
 # Δημιουργία ή Άνοιγμα Αρχείου Excel
 def setup_excel(path):
     try:
@@ -90,6 +80,8 @@ def setup_excel(path):
         wb.save(path)
         print(f"Δημιουργήθηκε νέο αρχείο Excel: '{path}'.")
     return wb, sheet
+
+
 
 # Σύνδεση στη σειριακή θύρα
 def connect_to_serial(port, baudrate):
@@ -119,27 +111,28 @@ def save_periodically(wb, path):
 # Δημιουργία γραφήματος σε πραγματικό χρόνο
 def animate(i, times, values, ax):
     ax.clear()
-    ax.plot(times, values, label="Τιμή καταγραφής")
-    ax.set_xlabel("Χρόνος (δευτερόλεπτα)")
-    ax.set_ylabel("Τιμή")
-    ax.set_title("Διάγραμμα Καταγραφής Δεδομένων")
+    ax.plot(times, values, label="Μέτρηση")
+    ax.set_xlabel("Αριθμός μετρήσεων")
+    ax.set_ylabel("Μέτρηση")
+    ax.set_title("Διάγραμμα καταγραφής μετρήσεων")
+
     plt.xticks(rotation=45)
     ax.legend()
 
+
 # Καταγραφή δεδομένων σε ξεχωριστό νήμα
-def record_data(ser, sheet, wb, path, times, values, saving_time, stop_event):
-    last_save_time = time.time()
+def record_data(ser, sheet, wb, path, times, values,  stop_event):
+    fores = 0  # Χρονική μεταβλητή που αυξάνεται διαρκώς
     print("\nΠατήστε Ctrl + C για να σταματήσετε την καταγραφή.")
     try:
         while not stop_event.is_set():
-            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            line = ser.readline().decode('utf-8', errors='ignore').strip()            
             if line:
                 validate_and_save_data(sheet, line)
-                times.append(time.time())
+                fores += 1  # Αύξηση του αριθμού μετρήσεων κατά 1 μονάδα 
+                times.append(fores)  
                 values.append(line)
-                if time.time() - last_save_time >= saving_time * 60:
-                    save_periodically(wb, path)
-                    last_save_time = time.time()
+                
                 print(f"Τρέχουσα μέτρηση: {line}")
     except KeyboardInterrupt:
         print("\nΔιακοπή από τον χρήστη.")
@@ -149,27 +142,29 @@ def record_data(ser, sheet, wb, path, times, values, saving_time, stop_event):
         save_periodically(wb, path)
         print(f"Ευχαριστούμε για τη χρήση της εφαρμογής αυτής.")
 
+
+
+
 # Κύριο πρόγραμμα
 if __name__ == "__main__":
     print("\n\n\nData From Serial to .xlsx (Vassilis Economou v.1.0.0)")
     print("______________________________________________________________\n")
 
+    times = []
+    values = []
+    
     port = pick_port()
     baudrate = pick_baud_rate()
-    saving_time = pick_time_save()
+    
     path = pick_output_location()
     wb, sheet = setup_excel(path)
     ser = connect_to_serial(port, baudrate)
-
-
-    times = []
-    values = []
 
     fig, ax = plt.subplots()
     ani = FuncAnimation(fig, animate, fargs=(times, values, ax), interval=100)
 
     stop_event = threading.Event()
-    record_thread = threading.Thread(target=record_data, args=(ser, sheet, wb, path, times, values, saving_time, stop_event))
+    record_thread = threading.Thread(target=record_data, args=(ser, sheet, wb, path, times, values, stop_event))
     record_thread.daemon = True
     record_thread.start()
 
@@ -178,5 +173,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         save_periodically(wb, path)
         print("_____________")
-        print("Ευχαριστούμε.")
+        print("Ευχαριστούμε.\n")
         stop_event.set()
