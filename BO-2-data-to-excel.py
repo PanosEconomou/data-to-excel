@@ -1,177 +1,200 @@
-# Data From Serial to .xlsx (Vassilis Economou v.1.0.0)
-# 2025-01-09
+# Vassilis Economou 2015-01-15
 
 import openpyxl
 from openpyxl import Workbook
 import serial
-import inquirer
 import serial.tools.list_ports as list_ports
 from datetime import datetime
-import sys
-#import time
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 import threading
+import queue
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import warnings
 import os
 
 # Απενεργοποίηση προειδοποιήσεων από matplotlib
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 
-# Επιλογή θύρας σειριακής σύνδεσης
-def pick_port():
-    ports = list_ports.comports()
-    if len(ports) == 0:
-        print("Δεν βρέθηκαν διαθέσιμες σειριακές θύρες.")
-        exit()
+class SerialDataLogger:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Serial Data Logger")
+        
+        # Προσθήκη εικονιδίου και τίτλου
+        #self.root.iconbitmap("icon.ico")  # Αντικαταστήστε με το όνομα του αρχείου εικονιδίου
+        title_label = ttk.Label(self.root, text="Καταγραφή Δεδομένων σε .xlsx (Βασίλης Οικονόμου v.1.0)", font=("Arial", 15, "bold"))
+        title_label.grid(row=0, column=0, columnspan=3, pady=10)
+        
+
+        # Αρχικοποίηση μεταβλητών
+        self.serial_port = None
+        self.baudrate = tk.IntVar(value=9600)
+        self.output_path = tk.StringVar(value=os.path.join(os.getcwd(), "data_from_serial.xlsx"))
+        self.times = []
+        self.values = []
+        self.data_queue = queue.Queue()
+        self.stop_event = threading.Event()
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Επιλογή θύρας
+        ports_label = ttk.Label(self.root, text="Θα διαβάσω από τη Θύρα:")
+        ports_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.ports_combobox = ttk.Combobox(self.root, state="readonly")
+        self.ports_combobox.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.refresh_ports()
+
+        refresh_button = ttk.Button(self.root, text="Ανανέωση", command=self.refresh_ports)
+        refresh_button.grid(row=1, column=2, padx=5, pady=5)
+
+        # Επιλογή baudrate
+        baudrate_label = ttk.Label(self.root, text="Baudrate:")
+        baudrate_label.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        baudrate_combobox = ttk.Combobox(self.root, textvariable=self.baudrate, state="readonly")
+        baudrate_combobox["values"] = [9600, 19200, 38400, 57600, 115200]
+        baudrate_combobox.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+
+        # Επιλογή τοποθεσίας εξόδου
+        output_label = ttk.Label(self.root, text="Αρχείο εξόδου:")
+        output_label.grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        output_entry = ttk.Entry(self.root, textvariable=self.output_path)
+        output_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+        browse_button = ttk.Button(self.root, text="Αναζήτηση", command=self.browse_file)
+        browse_button.grid(row=3, column=2, padx=5, pady=5)
+
+        # Κουμπιά έναρξης, τερματισμού και αποθήκευσης
+        start_button = ttk.Button(self.root, text="Έναρξη", command=self.start_logging)
+        start_button.grid(row=4, column=0, pady=10)
+        stop_button = ttk.Button(self.root, text="Τερματισμός", command=self.stop_logging)
+        stop_button.grid(row=4, column=1, pady=10)
+        save_button = ttk.Button(self.root, text="Αποθήκευση", command=self.save_data)
+        save_button.grid(row=4, column=2, pady=10)
+
+        # Περιοχή εμφάνισης δεδομένων
+        self.data_listbox = tk.Listbox(self.root, height=10)
+        self.data_listbox.grid(row=5, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+
+        # Διάγραμμα
+        figure = Figure(figsize=(7, 4), dpi=100)
+        self.ax = figure.add_subplot(1, 1, 1)
+        self.canvas = FigureCanvasTkAgg(figure, master=self.root)
+        self.canvas.get_tk_widget().grid(row=6, column=0, columnspan=3, pady=10, sticky="nsew")
+
+       
+
+        # Ρύθμιση διαστάσεων πλέγματος
+        self.root.columnconfigure(1, weight=1)
+        self.root.rowconfigure(6, weight=1)
     
-    questions = [
-        inquirer.List('port',
-                      message="Επιλέξτε θύρα σειριακής σύνδεσης",
-                      choices=[port.device for port in ports],
-                      ),
-    ]
-    answers = inquirer.prompt(questions)
-    return [port for port in ports if port.device == answers['port']][0]
+   
+    
+    def refresh_ports(self):
+        ports = [port.device for port in list_ports.comports()]
+        self.ports_combobox["values"] = ports
+        if ports:
+            self.ports_combobox.current(0)
 
-# Επιλογή baudrate
-def pick_baud_rate():
-    questions = [
-        inquirer.List('baudrate',
-                      message="Επιλέξτε baudrate",
-                      choices=[9600, 19200, 38400, 57600, 115200],
-                      default=9600,
-                      ),
-    ]
-    answers = inquirer.prompt(questions)
-    return answers['baudrate']
+    def browse_file(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".xlsx",
+                                                 filetypes=[("Excel Files", "*.xlsx")])
+        if file_path:
+            self.output_path.set(file_path)
 
+    def setup_excel(self):
+        path = self.output_path.get()
+        try:
+            wb = openpyxl.load_workbook(path)
+            sheet = wb.active
+        except (FileNotFoundError, KeyError):
+            wb = Workbook()
+            sheet = wb.active
+            sheet.append(["Time", "Value"])
+            wb.save(path)
+        return wb, sheet
 
-# Επιλογή τοποθεσίας εξόδου
-def pick_output_location():
-    questions = [inquirer.Path('file',
-                    message='Αρχείο καταγραφής',
-                    default=os.path.join(os.getcwd(),"data_from_serial.xlsx"),
-                    path_type=inquirer.Path.FILE
-                ),]
-    path_selected = inquirer.prompt(questions)
-    path = os.path.abspath(os.path.expanduser(path_selected['file']))
-    if not path.endswith('.xlsx'):
-        if os.path.isdir(path):
-            path = os.path.join(path,"data_from_serial.xlsx") 
+    def connect_to_serial(self):
+        port = self.ports_combobox.get()
+        baudrate = self.baudrate.get()
+        try:
+            ser = serial.Serial(port, baudrate=baudrate, timeout=1)
+            return ser
+        except Exception as e:
+            messagebox.showerror("Σφάλμα σύνδεσης", str(e))
+            return None
+
+    def start_logging(self):
+        self.serial_port = self.connect_to_serial()
+        if not self.serial_port:
+            return
+
+        self.wb, self.sheet = self.setup_excel()
+        self.stop_event.clear()
+
+        record_thread = threading.Thread(target=self.record_data)
+        record_thread.daemon = True
+        record_thread.start()
+
+        self.update_plot()
+
+    def stop_logging(self):
+        if self.serial_port:
+            if self.serial_port.is_open:
+                self.stop_event.set()
+                self.serial_port.close()
+            self.serial_port = None
+            messagebox.showinfo("Τερματισμός", "Η καταγραφή δεδομένων ολοκληρώθηκε.")
         else:
-            path += '.xlsx'
-    if not os.path.exists(os.path.dirname(path)):
-        os.makedirs(os.path.dirname(path))
-    return path
+            messagebox.showinfo("Τερματισμός", "Η καταγραφή είχε ήδη διακοπεί.")
 
+    def save_data(self):
+        path = self.output_path.get()
+        try:
+            self.wb.save(path)
+            messagebox.showinfo("Αποθήκευση", "Τα δεδομένα αποθηκεύτηκαν με επιτυχία.")
+        except Exception as e:
+            messagebox.showerror("Σφάλμα αποθήκευσης", str(e))
 
+    def record_data(self):
+        path = self.output_path.get()
+        try:
+            while not self.stop_event.is_set():
+                line = self.serial_port.readline().decode('utf-8', errors='ignore').strip()
+                if line:
+                    try:
+                        value = int(line)
+                    except ValueError:
+                        continue
+                    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    self.sheet.append([timestamp, value])
 
-# Δημιουργία ή Άνοιγμα Αρχείου Excel
-def setup_excel(path):
-    try:
-        wb = openpyxl.load_workbook(path)
-        sheet = wb.active
-        print(f"Το αρχείο Excel '{path}' βρέθηκε και άνοιξε.")
-    except (FileNotFoundError, KeyError):
-        wb = Workbook()
-        sheet = wb.active
-        sheet.append(["Time", "Value"])  # Επικεφαλίδες στηλών
-        wb.save(path)
-        print(f"Δημιουργήθηκε νέο αρχείο Excel: '{path}'.")
-    return wb, sheet
+                    self.data_queue.put((timestamp, value))
+        except Exception as e:
+            if not self.stop_event.is_set():
+                messagebox.showerror("Σφάλμα καταγραφής", str(e))
 
+    def update_plot(self):
+        while not self.data_queue.empty():
+            timestamp, value = self.data_queue.get()
+            self.times.append(len(self.times) + 1)
+            self.values.append(value)
 
+            self.data_listbox.insert(tk.END, f"{timestamp}: {value}")
+            self.data_listbox.see(tk.END)
 
-# Σύνδεση στη σειριακή θύρα
-def connect_to_serial(port, baudrate):
-    try:
-        ser = serial.Serial(port.device, baudrate=baudrate, timeout=1)
-        print("Σύνδεση επιτυχής στη θύρα!")
-        return ser
-    except Exception as e:
-        print(f"Αδυναμία σύνδεσης στη θύρα! Λεπτομέρειες: {e}")
-        sys.exit()
+        self.ax.clear()
+        self.ax.plot(self.times, self.values, label="Μέτρηση")
+        self.ax.set_xlabel("Αριθμός μετρήσεων")
+        self.ax.set_ylabel("Μέτρηση")
+        self.ax.legend()
+        self.canvas.draw()
 
-# Επικύρωση δεδομένων πριν την καταγραφή
-def validate_and_save_data(sheet, data):
-    if data:
-        sheet.append([datetime.now().strftime('%Y-%m-%d %H:%M:%S'), data])
-    else:
-        print("Δεν ελήφθησαν δεδομένα.")
+        if not self.stop_event.is_set():
+            self.root.after(5, self.update_plot)
 
-# Αποθήκευση αρχείου περιοδικά
-def save_periodically(wb, path):
-    try:
-        wb.save(path)
-        print(f"Το αρχείο '{path}' αποθηκεύτηκε.")
-    except Exception as e:
-        print(f"Σφάλμα κατά την αποθήκευση του αρχείου '{path}': {e}")
-
-# Δημιουργία γραφήματος σε πραγματικό χρόνο
-def animate(i, times, values, ax):
-    ax.clear()
-    ax.plot(times, values, label="Μέτρηση")
-    ax.set_xlabel("Αριθμός μετρήσεων")
-    ax.set_ylabel("Μέτρηση")
-    ax.set_title("Διάγραμμα καταγραφής μετρήσεων")
-
-    plt.xticks(rotation=45)
-    ax.legend()
-
-
-# Καταγραφή δεδομένων σε ξεχωριστό νήμα
-def record_data(ser, sheet, wb, path, times, values,  stop_event):
-    fores = 0  # Χρονική μεταβλητή που αυξάνεται διαρκώς
-    print("\nΠατήστε Ctrl + C για να σταματήσετε την καταγραφή.")
-    try:
-        while not stop_event.is_set():
-            line = ser.readline().decode('utf-8', errors='ignore').strip()            
-            if line:
-                validate_and_save_data(sheet, line)
-                fores += 1  # Αύξηση του αριθμού μετρήσεων κατά 1 μονάδα 
-                times.append(fores)  
-                values.append(line)
-                
-                print(f"Τρέχουσα μέτρηση: {line}")
-    except KeyboardInterrupt:
-        print("\nΔιακοπή από τον χρήστη.")
-    except Exception as e:
-        print(f"Σφάλμα: {e}")
-    finally:
-        save_periodically(wb, path)
-        print(f"Ευχαριστούμε για τη χρήση της εφαρμογής αυτής.")
-
-
-
-
-# Κύριο πρόγραμμα
 if __name__ == "__main__":
-    print("\n\n\nData From Serial to .xlsx (Vassilis Economou v.1.0.0)")
-    print("______________________________________________________________\n")
-
-    times = []
-    values = []
-    
-    port = pick_port()
-    baudrate = pick_baud_rate()
-    
-    path = pick_output_location()
-    wb, sheet = setup_excel(path)
-    ser = connect_to_serial(port, baudrate)
-
-    fig, ax = plt.subplots()
-    ani = FuncAnimation(fig, animate, fargs=(times, values, ax), interval=100)
-
-    stop_event = threading.Event()
-    record_thread = threading.Thread(target=record_data, args=(ser, sheet, wb, path, times, values, stop_event))
-    record_thread.daemon = True
-    record_thread.start()
-
-    try:
-        plt.show()
-    except KeyboardInterrupt:
-        save_periodically(wb, path)
-        print("_____________")
-        print("Ευχαριστούμε.\n")
-        stop_event.set()
+    root = tk.Tk()
+    app = SerialDataLogger(root)
+    root.mainloop()
