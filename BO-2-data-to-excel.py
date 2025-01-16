@@ -1,7 +1,8 @@
-# Vassilis Economou 2015-01-15
+#Vassilis Economou 16/01/2025 v.02
 
 import openpyxl
 from openpyxl import Workbook
+import csv
 import serial
 import serial.tools.list_ports as list_ports
 from datetime import datetime
@@ -21,17 +22,16 @@ class SerialDataLogger:
     def __init__(self, root):
         self.root = root
         self.root.title("Serial Data Logger")
-        
+
         # Προσθήκη εικονιδίου και τίτλου
         #self.root.iconbitmap("icon.ico")  # Αντικαταστήστε με το όνομα του αρχείου εικονιδίου
-        title_label = ttk.Label(self.root, text="Καταγραφή Δεδομένων σε .xlsx (Βασίλης Οικονόμου v.1.0)", font=("Arial", 15, "bold"))
+        title_label = ttk.Label(self.root, text="Καταγραφή δεδομένων σε αρχείο .xlsx ή .csv [Βασίλης Οικονόμου v.02]", font=("Arial", 15, "bold"))
         title_label.grid(row=0, column=0, columnspan=3, pady=10)
-        
 
         # Αρχικοποίηση μεταβλητών
         self.serial_port = None
         self.baudrate = tk.IntVar(value=9600)
-        self.output_path = tk.StringVar(value=os.path.join(os.getcwd(), "data_from_serial.xlsx"))
+        self.output_path = tk.StringVar(value=os.path.join(os.getcwd(), "data_from_serial"))
         self.times = []
         self.values = []
         self.data_queue = queue.Queue()
@@ -51,22 +51,24 @@ class SerialDataLogger:
         refresh_button.grid(row=1, column=2, padx=5, pady=5)
 
         # Επιλογή baudrate
-        baudrate_label = ttk.Label(self.root, text="Baudrate:")
+        baudrate_label = ttk.Label(self.root, text="...με ρυθμό (Baudrate):")
         baudrate_label.grid(row=2, column=0, padx=5, pady=5, sticky="w")
         baudrate_combobox = ttk.Combobox(self.root, textvariable=self.baudrate, state="readonly")
         baudrate_combobox["values"] = [9600, 19200, 38400, 57600, 115200]
         baudrate_combobox.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
+
         # Επιλογή τοποθεσίας εξόδου
-        output_label = ttk.Label(self.root, text="Αρχείο εξόδου:")
+        output_label = ttk.Label(self.root, text="Θα αποθηκεύσω στο αρχείο (.xlsx ή .csv):")
         output_label.grid(row=3, column=0, padx=5, pady=5, sticky="w")
         output_entry = ttk.Entry(self.root, textvariable=self.output_path)
         output_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
         browse_button = ttk.Button(self.root, text="Αναζήτηση", command=self.browse_file)
         browse_button.grid(row=3, column=2, padx=5, pady=5)
 
+
         # Κουμπιά έναρξης, τερματισμού και αποθήκευσης
-        start_button = ttk.Button(self.root, text="Έναρξη", command=self.start_logging)
+        start_button = ttk.Button(self.root, text="Έναρξη καταγραφής", command=self.start_logging)
         start_button.grid(row=4, column=0, pady=10)
         stop_button = ttk.Button(self.root, text="Τερματισμός", command=self.stop_logging)
         stop_button.grid(row=4, column=1, pady=10)
@@ -83,14 +85,10 @@ class SerialDataLogger:
         self.canvas = FigureCanvasTkAgg(figure, master=self.root)
         self.canvas.get_tk_widget().grid(row=6, column=0, columnspan=3, pady=10, sticky="nsew")
 
-       
-
         # Ρύθμιση διαστάσεων πλέγματος
         self.root.columnconfigure(1, weight=1)
         self.root.rowconfigure(6, weight=1)
-    
-   
-    
+
     def refresh_ports(self):
         ports = [port.device for port in list_ports.comports()]
         self.ports_combobox["values"] = ports
@@ -99,21 +97,54 @@ class SerialDataLogger:
 
     def browse_file(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".xlsx",
-                                                 filetypes=[("Excel Files", "*.xlsx")])
+                                                 filetypes=[("Excel Files", "*.xlsx"), ("CSV Files", "*.csv")])
         if file_path:
             self.output_path.set(file_path)
 
-    def setup_excel(self):
-        path = self.output_path.get()
-        try:
-            wb = openpyxl.load_workbook(path)
-            sheet = wb.active
-        except (FileNotFoundError, KeyError):
-            wb = Workbook()
-            sheet = wb.active
-            sheet.append(["Time", "Value"])
-            wb.save(path)
-        return wb, sheet
+    def save_data(self):
+        file_extension = self.get_file_extension()
+        if file_extension == ".xlsx":
+            try:
+                self.wb.save(self.output_path.get())
+                messagebox.showinfo("Αποθήκευση", "Τα δεδομένα αποθηκεύτηκαν με επιτυχία σε .xlsx.")
+            except Exception as e:
+                messagebox.showerror("Σφάλμα αποθήκευσης", str(e))
+        elif file_extension == ".csv":
+            try:
+                with open(self.output_path.get(), mode="w", newline="", encoding="utf-8") as file:
+                    writer = csv.writer(file)
+                    writer.writerow(["Time", "Value"])
+                    writer.writerows(zip(self.times, self.values))
+                messagebox.showinfo("Αποθήκευση", "Τα δεδομένα αποθηκεύτηκαν με επιτυχία σε .csv.")
+            except Exception as e:
+                messagebox.showerror("Σφάλμα αποθήκευσης", str(e))
+
+    def setup_file(self):
+        file_extension = self.get_file_extension()
+        if file_extension == ".xlsx":
+            path = self.output_path.get()
+            try:
+                wb = openpyxl.load_workbook(path)
+                sheet = wb.active
+            except (FileNotFoundError, KeyError):
+                wb = Workbook()
+                sheet = wb.active
+                sheet.append(["Time", "Value"])
+                wb.save(path)
+            return wb, sheet
+        elif file_extension == ".csv":
+            return None, None
+
+    def get_file_extension(self):
+        # Λαμβάνουμε την επέκταση από το path του αρχείου
+        file_path = self.output_path.get()
+        if file_path.endswith(".xlsx"):
+            return ".xlsx"
+        elif file_path.endswith(".csv"):
+            return ".csv"
+        else:
+            messagebox.showerror("Σφάλμα", "Ακατάλληλος τύπος αρχείου!")
+            return None
 
     def connect_to_serial(self):
         port = self.ports_combobox.get()
@@ -130,7 +161,7 @@ class SerialDataLogger:
         if not self.serial_port:
             return
 
-        self.wb, self.sheet = self.setup_excel()
+        self.wb, self.sheet = self.setup_file()
         self.stop_event.clear()
 
         record_thread = threading.Thread(target=self.record_data)
@@ -149,31 +180,31 @@ class SerialDataLogger:
         else:
             messagebox.showinfo("Τερματισμός", "Η καταγραφή είχε ήδη διακοπεί.")
 
-    def save_data(self):
-        path = self.output_path.get()
-        try:
-            self.wb.save(path)
-            messagebox.showinfo("Αποθήκευση", "Τα δεδομένα αποθηκεύτηκαν με επιτυχία.")
-        except Exception as e:
-            messagebox.showerror("Σφάλμα αποθήκευσης", str(e))
-
     def record_data(self):
-        path = self.output_path.get()
         try:
             while not self.stop_event.is_set():
                 line = self.serial_port.readline().decode('utf-8', errors='ignore').strip()
                 if line:
-                    try:
-                        value = int(line)
-                    except ValueError:
-                        continue
                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    self.sheet.append([timestamp, value])
-
+                    
+                    # Ελέγχουμε αν η γραμμή περιέχει μόνο αριθμούς
+                    if line.replace('.', '', 1).isdigit():  # Ελέγχει αν είναι αριθμός
+                        value = float(line)  # Αν είναι αριθμός, τον αποθηκεύουμε ως float
+                    else:
+                        value = line  # Αν περιέχει γράμματα, το κρατάμε ως κείμενο
+                    
+                    # Αν το αρχείο εξόδου είναι .xlsx, καταγράφουμε τη γραμμή
+                    if self.get_file_extension() == ".xlsx":
+                        self.sheet.append([timestamp, value])
+                    
+                    # Βάζουμε τα δεδομένα στην ουρά για την απεικόνιση
                     self.data_queue.put((timestamp, value))
         except Exception as e:
             if not self.stop_event.is_set():
                 messagebox.showerror("Σφάλμα καταγραφής", str(e))
+
+
+
 
     def update_plot(self):
         while not self.data_queue.empty():
@@ -192,7 +223,8 @@ class SerialDataLogger:
         self.canvas.draw()
 
         if not self.stop_event.is_set():
-            self.root.after(5, self.update_plot)
+            # Μειώνουμε την καθυστέρηση για πιο συχνή ανανέωση
+            self.root.after(50, self.update_plot)
 
 if __name__ == "__main__":
     root = tk.Tk()
