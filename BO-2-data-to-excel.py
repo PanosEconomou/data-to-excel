@@ -14,6 +14,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import warnings
 import os
+import requests  
 
 # Απενεργοποίηση προειδοποιήσεων από matplotlib
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
@@ -37,6 +38,10 @@ class SerialDataLogger:
         self.data_queue = queue.Queue()
         self.stop_event = threading.Event()
 
+        # Επιλογή ThingSpeak
+        self.send_to_thingspeak = tk.BooleanVar(value=False)
+        self.thingspeak_api_key = tk.StringVar(value="8Q9GSIRNOAP2FXDY")  # Αρχικό API Key
+
         self.create_widgets()
 
     def create_widgets(self):
@@ -57,7 +62,6 @@ class SerialDataLogger:
         baudrate_combobox["values"] = [9600, 19200, 38400, 57600, 115200]
         baudrate_combobox.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
 
-
         # Επιλογή τοποθεσίας εξόδου
         output_label = ttk.Label(self.root, text="Θα αποθηκεύσω στο αρχείο (.xlsx ή .csv):")
         output_label.grid(row=3, column=0, padx=5, pady=5, sticky="w")
@@ -66,28 +70,55 @@ class SerialDataLogger:
         browse_button = ttk.Button(self.root, text="Αναζήτηση", command=self.browse_file)
         browse_button.grid(row=3, column=2, padx=5, pady=5)
 
+        # Επιλογή για ThingSpeak
+        thingspeak_check = ttk.Checkbutton(self.root, text="Αποστολή τιμής και στο ThingSpeak με API Key:", variable=self.send_to_thingspeak)
+        thingspeak_check.grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        #thingspeak_check.grid(row=4, column=0, columnspan=3, pady=5)
+
+        # Πεδίο για εισαγωγή API Key για ThingSpeak
+        api_key_entry = ttk.Entry(self.root, textvariable=self.thingspeak_api_key)
+        api_key_entry.grid(row=4, column=1, padx=5, pady=5, sticky="ew")
 
         # Κουμπιά έναρξης, τερματισμού και αποθήκευσης
         start_button = ttk.Button(self.root, text="Έναρξη καταγραφής", command=self.start_logging)
-        start_button.grid(row=4, column=0, pady=10)
+        start_button.grid(row=6, column=0, pady=10)
         stop_button = ttk.Button(self.root, text="Τερματισμός", command=self.stop_logging)
-        stop_button.grid(row=4, column=1, pady=10)
+        stop_button.grid(row=6, column=1, pady=10)
         save_button = ttk.Button(self.root, text="Αποθήκευση", command=self.save_data)
-        save_button.grid(row=4, column=2, pady=10)
+        save_button.grid(row=6, column=2, pady=10)
 
         # Περιοχή εμφάνισης δεδομένων
         self.data_listbox = tk.Listbox(self.root, height=10)
-        self.data_listbox.grid(row=5, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        self.data_listbox.grid(row=7, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
 
         # Διάγραμμα
         figure = Figure(figsize=(7, 4), dpi=100)
         self.ax = figure.add_subplot(1, 1, 1)
         self.canvas = FigureCanvasTkAgg(figure, master=self.root)
-        self.canvas.get_tk_widget().grid(row=6, column=0, columnspan=3, pady=10, sticky="nsew")
+        self.canvas.get_tk_widget().grid(row=8, column=0, columnspan=3, pady=10, sticky="nsew")
 
         # Ρύθμιση διαστάσεων πλέγματος
         self.root.columnconfigure(1, weight=1)
-        self.root.rowconfigure(6, weight=1)
+        self.root.rowconfigure(7, weight=1)
+
+    def send_to_thingspeak_api(self, value):
+        if self.send_to_thingspeak.get():  # Έλεγχος αν το checkbox είναι ενεργοποιημένο
+            try:
+                api_key = self.thingspeak_api_key.get()
+                if not api_key:
+                    messagebox.showwarning("API Key", "Παρακαλώ εισάγετε το API Key.")
+                    return
+                url = f"https://api.thingspeak.com/update?api_key={api_key}"
+                payload = {'field1': value}
+                response = requests.get(url, params=payload)
+                if response.status_code == 200:
+                    print(value)
+                else:
+                    messagebox.showerror("Σφάλμα αποστολής στο ThingSpeak.")
+            except Exception as e:
+                messagebox.showerror("Σφάλμα σύνδεσης στο ThingSpeak", str(e))
+              
+
 
     def refresh_ports(self):
         ports = [port.device for port in list_ports.comports()]
@@ -199,6 +230,9 @@ class SerialDataLogger:
                     
                     # Βάζουμε τα δεδομένα στην ουρά για την απεικόνιση
                     self.data_queue.put((timestamp, value))
+
+                    # Στέλνουμε τα δεδομένα στο ThingSpeak
+                    self.send_to_thingspeak_api(value)
         except Exception as e:
             if not self.stop_event.is_set():
                 messagebox.showerror("Σφάλμα καταγραφής", str(e))
