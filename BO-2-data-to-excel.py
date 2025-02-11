@@ -1,4 +1,4 @@
-#Vassilis Economou 16/01/2025 v.03
+#Vassilis Economou 16/01/2025 v.02
 
 import openpyxl
 from openpyxl import Workbook
@@ -26,17 +26,18 @@ class SerialDataLogger:
 
         # Προσθήκη εικονιδίου και τίτλου
         #self.root.iconbitmap("icon.ico")  # Αντικαταστήστε με το όνομα του αρχείου εικονιδίου
-        title_label = ttk.Label(self.root, text="Καταγραφή δεδομένων σε αρχείο .xlsx ή .csv [Βασίλης Οικονόμου v.02]", font=("Arial", 15, "bold"))
+        title_label = ttk.Label(self.root, text="Serial Data Logger  [Βασίλης Οικονόμου v.02]", font=("Arial", 15, "bold"))
         title_label.grid(row=0, column=0, columnspan=3, pady=10)
 
         # Αρχικοποίηση μεταβλητών
         self.serial_port = None
         self.baudrate = tk.IntVar(value=9600)
-        self.output_path = tk.StringVar(value=os.path.join(os.getcwd(), "data_from_serial"))
+        self.output_path = tk.StringVar(value=os.path.join(os.getcwd(), "BO_SDL.xlsx"))
         self.times = []
         self.values = []
         self.data_queue = queue.Queue()
         self.stop_event = threading.Event()
+        self.sampling_rate = tk.IntVar(value=0)  # Ταχύτητα δειγματοληψίας σε ms
 
         # Επιλογή ThingSpeak
         self.send_to_thingspeak = tk.BooleanVar(value=False)
@@ -44,62 +45,108 @@ class SerialDataLogger:
 
         self.create_widgets()
 
+    # Προσθήκη της συνάρτησης για το παράθυρο οδηγών
+    def open_instructions_window(self):
+        # Δημιουργία νέου παραθύρου
+        instructions_window = tk.Toplevel(self.root)
+        instructions_window.title("Οδηγίες")
+        instructions_window.geometry("500x600")
+
+        # Εισαγωγή κειμένου με οδηγίες
+        instructions_text = (
+            "Καταγραφή δεδομένων από serial (Serial Data Logger).\n\n\n"
+            "Μπορείτε να:\n\n" 
+            "1. Eπιλέξετε τη θύρα από την οποία θα διαβάσετε δεδομένα.\n"
+            "    (με [Aνανέωση] διαβάζονται ξανά οι διαθέσιμες θύρες)\n\n"
+            "2. Ορίσετε το Baudrate για τη σύνδεση.\n"
+            "    (η τιμή που προτείνεται είναι αρκετή)\n\n"
+            "3. Επιλέξετε αν οι μετρήσεις θα εξάγονται στο ThinkSpeeak.\n"
+            "    (οπότε θα χρειαστεί να oρίσετε και το API Key)\n\n"
+            "4. Επιλέξετε την καθυστέρηση μεταξύ των δειγματοληψιών\n\n\n\n"
+            "Πρέπει να:\n\n"
+            "Επιλέξετε το όνομα του αρχείου και τον τύπο του (.xlsx ή .csv), για αποθήκευση.\n\n\n"
+            "_______________________\n\n"
+            "Πατήστε [Έναρξη καταγραφής] για να ξεκινήσετε τη καταγραφή.\n\n"
+            "Πατήστε [Τερματισμός] για να σταματήσετε την καταγραφή.\n\n"
+            "Πατήστε [Αποθήκευση] για να αποθηκεύσετε τα δεδομένα.\n"
+            "    (μπορείτε να αποθηκεύετε και πριν τον τερματισμό τιμές στο αρχείο\n"
+            "    ...όσες φορές θέλετε/χρειαστεί)\n\n\n\n"
+            "Ελπίζω να σας φανεί χρήσιμη η εφαρμογή αυτή.\n"
+        )
+        # Εμφάνιση κειμένου
+        text_widget = tk.Label(instructions_window, text=instructions_text, justify=tk.LEFT, font=("Arial", 12))
+        text_widget.pack(padx=10, pady=10)
+        # Προσθήκη κουμπιού για κλείσιμο
+        close_button = ttk.Button(instructions_window, text="Κλείσιμο", command=instructions_window.destroy)
+        close_button.pack(pady=5)
+
     def create_widgets(self):
+        # Προσθήκη κουμπιού για οδηγίες χρήσης
+        instructions_button = ttk.Button(self.root, text="  Οδηγίες  ", command=self.open_instructions_window)
+        instructions_button.grid(row=1, column=2, pady=3)
         # Επιλογή θύρας
         ports_label = ttk.Label(self.root, text="Θα διαβάσω από τη Θύρα:")
-        ports_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        ports_label.grid(row=2, column=0, padx=5, pady=3, sticky="w")
         self.ports_combobox = ttk.Combobox(self.root, state="readonly")
-        self.ports_combobox.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.ports_combobox.grid(row=2, column=1, padx=5, pady=3, sticky="ew")
         self.refresh_ports()
-
         refresh_button = ttk.Button(self.root, text="Ανανέωση", command=self.refresh_ports)
-        refresh_button.grid(row=1, column=2, padx=5, pady=5)
+        refresh_button.grid(row=2, column=2, padx=5, pady=3)
 
         # Επιλογή baudrate
         baudrate_label = ttk.Label(self.root, text="...με ρυθμό (Baudrate):")
-        baudrate_label.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        baudrate_label.grid(row=3, column=0, padx=5, pady=3, sticky="w")
         baudrate_combobox = ttk.Combobox(self.root, textvariable=self.baudrate, state="readonly")
         baudrate_combobox["values"] = [9600, 19200, 38400, 57600, 115200]
-        baudrate_combobox.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        baudrate_combobox.grid(row=3, column=1, padx=5, pady=3, sticky="ew")
 
         # Επιλογή τοποθεσίας εξόδου
         output_label = ttk.Label(self.root, text="Θα αποθηκεύσω στο αρχείο (.xlsx ή .csv):")
-        output_label.grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        output_label.grid(row=4, column=0, padx=5, pady=3, sticky="w")
         output_entry = ttk.Entry(self.root, textvariable=self.output_path)
-        output_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
-        browse_button = ttk.Button(self.root, text="Αναζήτηση", command=self.browse_file)
-        browse_button.grid(row=3, column=2, padx=5, pady=5)
+        output_entry.grid(row=4, column=1, padx=0, pady=3, sticky="ew")
+        browse_button = ttk.Button(self.root, text="Επιλογή άλλου", command=self.browse_file)
+        browse_button.grid(row=4, column=2, padx=5, pady=3)
 
         # Επιλογή για ThingSpeak
         thingspeak_check = ttk.Checkbutton(self.root, text="Αποστολή τιμής και στο ThingSpeak με API Key:", variable=self.send_to_thingspeak)
-        thingspeak_check.grid(row=4, column=0, padx=5, pady=5, sticky="w")
-        #thingspeak_check.grid(row=4, column=0, columnspan=3, pady=5)
-
-        # Πεδίο για εισαγωγή API Key για ThingSpeak
+        thingspeak_check.grid(row=5, column=0, padx=5, pady=3, sticky="w")
         api_key_entry = ttk.Entry(self.root, textvariable=self.thingspeak_api_key)
-        api_key_entry.grid(row=4, column=1, padx=5, pady=5, sticky="ew")
+        api_key_entry.grid(row=5, column=1, padx=5, pady=3, sticky="ew")
+
+        # Slider για την ταχύτητα δειγματοληψίας
+        sampling_rate_label = ttk.Label(self.root, text="Καθυστέρηση μεταξύ των δειγματοληψιών (ms):")
+        sampling_rate_label.grid(row=6, column=0, padx=5, pady=3, sticky="w")
+        self.sampling_rate_slider = ttk.Scale(self.root, from_=0, to=5000, variable=self.sampling_rate, orient=tk.HORIZONTAL)
+        self.sampling_rate_slider.grid(row=6, column=1, padx=5, pady=3, sticky="ew")
+        self.sampling_rate_value_label = ttk.Label(self.root, text=f"{self.sampling_rate.get()} ms")
+        self.sampling_rate_value_label.grid(row=6, column=2, padx=5, pady=3, sticky="w")
+        self.sampling_rate_slider.config(command=self.update_sampling_rate_label)
 
         # Κουμπιά έναρξης, τερματισμού και αποθήκευσης
         start_button = ttk.Button(self.root, text="Έναρξη καταγραφής", command=self.start_logging)
-        start_button.grid(row=6, column=0, pady=10)
-        stop_button = ttk.Button(self.root, text="Τερματισμός", command=self.stop_logging)
-        stop_button.grid(row=6, column=1, pady=10)
+        start_button.grid(row=7, column=0, pady=3)
+        stop_button = ttk.Button(self.root, text="Τερματισμός καταγραφής", command=self.stop_logging)
+        stop_button.grid(row=7, column=1, pady=3)
         save_button = ttk.Button(self.root, text="Αποθήκευση", command=self.save_data)
-        save_button.grid(row=6, column=2, pady=10)
+        save_button.grid(row=7, column=2, pady=3)
 
         # Περιοχή εμφάνισης δεδομένων
         self.data_listbox = tk.Listbox(self.root, height=10)
-        self.data_listbox.grid(row=7, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        self.data_listbox.grid(row=8, column=0, columnspan=3, padx=5, pady=3, sticky="nsew")
 
         # Διάγραμμα
         figure = Figure(figsize=(7, 4), dpi=100)
         self.ax = figure.add_subplot(1, 1, 1)
         self.canvas = FigureCanvasTkAgg(figure, master=self.root)
-        self.canvas.get_tk_widget().grid(row=8, column=0, columnspan=3, pady=10, sticky="nsew")
+        self.canvas.get_tk_widget().grid(row=9, column=0, columnspan=3, pady=3, sticky="nsew")
 
         # Ρύθμιση διαστάσεων πλέγματος
         self.root.columnconfigure(1, weight=1)
-        self.root.rowconfigure(7, weight=1)
+        self.root.rowconfigure(8, weight=1)
+
+    def update_sampling_rate_label(self, value):
+        self.sampling_rate_value_label.config(text=f"{int(float(value))} ms")
 
     def send_to_thingspeak_api(self, value):
         if self.send_to_thingspeak.get():  # Έλεγχος αν το checkbox είναι ενεργοποιημένο
@@ -117,8 +164,6 @@ class SerialDataLogger:
                     messagebox.showerror("Σφάλμα αποστολής στο ThingSpeak.")
             except Exception as e:
                 messagebox.showerror("Σφάλμα σύνδεσης στο ThingSpeak", str(e))
-              
-
 
     def refresh_ports(self):
         ports = [port.device for port in list_ports.comports()]
@@ -233,12 +278,12 @@ class SerialDataLogger:
 
                     # Στέλνουμε τα δεδομένα στο ThingSpeak
                     self.send_to_thingspeak_api(value)
+                    
+                    # Προσθήκη καθυστέρησης ανάλογα με την ταχύτητα δειγματοληψίας
+                    threading.Event().wait(self.sampling_rate.get() / 1000)
         except Exception as e:
             if not self.stop_event.is_set():
                 messagebox.showerror("Σφάλμα καταγραφής", str(e))
-
-
-
 
     def update_plot(self):
         while not self.data_queue.empty():
@@ -255,6 +300,7 @@ class SerialDataLogger:
         self.ax.set_ylabel("Μέτρηση")
         self.ax.legend()
         self.canvas.draw()
+
 
         if not self.stop_event.is_set():
             # Μειώνουμε την καθυστέρηση για πιο συχνή ανανέωση
