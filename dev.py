@@ -15,6 +15,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import warnings
 import os
 import requests  
+from itertools import zip_longest
 
 # Απενεργοποίηση προειδοποιήσεων από matplotlib
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
@@ -41,7 +42,7 @@ class SerialDataLogger:
 
         # Επιλογή ThingSpeak
         self.send_to_thingspeak = tk.BooleanVar(value=False)
-        self.thingspeak_api_key = tk.StringVar(value="8Q9GSIRNOAP2FXDY")  # Αρχικό API Key
+        self.thingspeak_api_key = tk.StringVar(value="SOINXIWML0O99YRI")  # Αρχικό API Key
 
         self.create_widgets()
 
@@ -138,7 +139,7 @@ class SerialDataLogger:
             e.grid(row=r, column=c, padx=4, pady=4, sticky="ew")
             self.extra_entries.append(e)
 
-        for i, v in enumerate(self.extra_text_vars): v.set(f"Field {i}")
+        for i, v in enumerate(self.extra_text_vars): v.set(f"Field {i+1}")
 
         # Κουμπιά έναρξης, τερματισμού και αποθήκευσης
         start_button = ttk.Button(self.root, text="Έναρξη καταγραφής", command=self.start_logging)
@@ -173,8 +174,9 @@ class SerialDataLogger:
                     messagebox.showwarning("API Key", "Παρακαλώ εισάγετε το API Key.")
                     return
                 url = f"https://api.thingspeak.com/update?api_key={api_key}"
-                payload = {label: value for label, value in zip([v.get() for v in self.extra_text_vars], values)}
+                payload = {label: value for label, value in zip([f"field{i+1}" for i in range(len(values))], values)}
                 response = requests.get(url, params=payload)
+                # print(payload, response)
                 if response.status_code == 200:
                     print(values)
                 else:
@@ -198,7 +200,7 @@ class SerialDataLogger:
         file_extension = self.get_file_extension()
         if file_extension == ".xlsx":
             try:
-                self.wb.save(self.output_path.get())
+                self.wb.save(self.output_path.get()) #type:ignore
                 messagebox.showinfo("Αποθήκευση", "Τα δεδομένα αποθηκεύτηκαν με επιτυχία σε .xlsx.")
             except Exception as e:
                 messagebox.showerror("Σφάλμα αποθήκευσης", str(e))
@@ -207,7 +209,9 @@ class SerialDataLogger:
                 with open(self.output_path.get(), mode="w", newline="", encoding="utf-8") as file:
                     writer = csv.writer(file)
                     writer.writerow(["Time"] + [v.get() for v in self.extra_text_vars])
-                    writer.writerows(zip(self.times, self.values)) #TODO: Continue from here
+                    data = list(zip_longest(*self.values, fillvalue=0.))
+                    data = [list(col) for col in data]
+                    writer.writerows(zip(self.times, *data))
                 messagebox.showinfo("Αποθήκευση", "Τα δεδομένα αποθηκεύτηκαν με επιτυχία σε .csv.")
             except Exception as e:
                 messagebox.showerror("Σφάλμα αποθήκευσης", str(e))
@@ -222,7 +226,7 @@ class SerialDataLogger:
             except (FileNotFoundError, KeyError):
                 wb = Workbook()
                 sheet = wb.active
-                sheet.append(["Time"] + [v.get() for v in self.extra_text_vars])
+                sheet.append(["Time"] + [v.get() for v in self.extra_text_vars]) #type:ignore
                 wb.save(path)
             return wb, sheet
         elif file_extension == ".csv":
@@ -254,7 +258,7 @@ class SerialDataLogger:
         if not self.serial_port:
             return
 
-        self.wb, self.sheet = self.setup_file()
+        self.wb, self.sheet = self.setup_file() #type:ignore
         self.stop_event.clear()
 
         record_thread = threading.Thread(target=self.record_data)
@@ -308,15 +312,19 @@ class SerialDataLogger:
 
     def update_plot(self):
         while not self.data_queue.empty():
-            timestamp, value = self.data_queue.get()
+            timestamp, values = self.data_queue.get()
             self.times.append(len(self.times) + 1)
-            self.values.append(value)
+            self.values.append(values)
 
-            self.data_listbox.insert(tk.END, f"{timestamp}: {value}")
+            self.data_listbox.insert(tk.END, f"{timestamp}: {values}")
             self.data_listbox.see(tk.END)
 
         self.ax.clear()
-        self.ax.plot(self.times, self.values, label="Μέτρηση")
+        data = list(zip_longest(*self.values, fillvalue=0.))
+        data = [list(col) for col in data]
+        data = [[x if isinstance(x,float) else 0 for x in col] for col in data]
+        for i,col in enumerate(data):
+            self.ax.plot(self.times, col, label=self.extra_text_vars[i].get())
         self.ax.set_xlabel("Αριθμός μετρήσεων")
         self.ax.set_ylabel("Μέτρηση")
         self.ax.legend()
