@@ -91,7 +91,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: macos-15-intel-executable
-          path: macos-x86_64_>15
+          path: macos-x86_64_up-to-15
 
       - name: Download Mac arm64 executable artifact
         uses: actions/download-artifact@v4
@@ -132,8 +132,8 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./macos-x86_64_>15/macos-15-intel.zip # Path to the macOS executable
-          asset_name: BO-2-data-to-excel-macos-x86_64_>15.zip # Name of the asset
+          asset_path: ./macos-x86_64_up-to-15/macos-15-intel.zip # Path to the macOS executable
+          asset_name: BO-2-data-to-excel-macos-x86_64_up-to-15.zip # Name of the asset
           asset_content_type: application/octet-stream
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -142,7 +142,7 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./macos-arm64/macos-latest.zip # Path to the macOS executable
+          asset_path: ./macos-arm64/macos-latest-arm.zip # Path to the macOS executable
           asset_name: BO-2-data-to-excel-macos.zip # Name of the asset
           asset_content_type: application/octet-stream
         env:
