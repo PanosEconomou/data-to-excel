@@ -208,7 +208,8 @@ class SerialDataLogger:
             try:
                 with open(self.output_path.get(), mode="w", newline="", encoding="utf-8") as file:
                     writer = csv.writer(file)
-                    writer.writerow(["Time"] + [v.get() for v in self.extra_text_vars])
+                    labels = [v.get() for v in self.extra_text_vars if v.get() != ""]
+                    writer.writerow(["Time"] + labels)
                     data = list(zip_longest(*self.values, fillvalue=0.))
                     data = [list(col) for col in data]
                     writer.writerows(zip(self.times, *data))
@@ -226,7 +227,7 @@ class SerialDataLogger:
             except (FileNotFoundError, KeyError):
                 wb = Workbook()
                 sheet = wb.active
-                sheet.append(["Time"] + [v.get() for v in self.extra_text_vars]) #type:ignore
+                sheet.append(["Time"] + [v.get() for v in self.extra_text_vars if v.get() != ""]) #type:ignore
                 wb.save(path)
             return wb, sheet
         elif file_extension == ".csv":
