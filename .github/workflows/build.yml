@@ -142,8 +142,8 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./macos-arm64/macos-latest-arm.zip # Path to the macOS executable
-          asset_name: BO-2-data-to-excel-macos.zip # Name of the asset
+          asset_path: ./macos-arm64/macos-latest.zip # Path to the macOS executable
+          asset_name: BO-2-data-to-excel-macos-arm64.zip # Name of the asset
           asset_content_type: application/octet-stream
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
