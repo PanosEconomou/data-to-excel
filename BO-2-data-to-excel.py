@@ -325,7 +325,7 @@ class SerialDataLogger:
         data = [list(col) for col in data]
         data = [[x if isinstance(x,float) else 0 for x in col] for col in data]
         for i,col in enumerate(data):
-            self.ax.plot(self.times, col, label=self.extra_text_vars[i].get())
+            self.ax.plot(self.times, col, label="" if i > 7 else self.extra_text_vars[i].get())
         self.ax.set_xlabel("Αριθμός μετρήσεων")
         self.ax.set_ylabel("Μέτρηση")
         self.ax.legend()
