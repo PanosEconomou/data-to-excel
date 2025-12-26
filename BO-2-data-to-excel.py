@@ -278,13 +278,6 @@ class SerialDataLogger:
         else:
             messagebox.showinfo("Τερματισμός", "Η καταγραφή είχε ήδη διακοπεί.")
 
-    # Convert value to float if you can
-    def convert(self, val:str):
-        try:
-            return float(val)
-        except:
-            return val
-
     def record_data(self):
         try:
             while not self.stop_event.is_set():
@@ -293,7 +286,10 @@ class SerialDataLogger:
                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
                     # Convert values
-                    values = [self.convert(val) for val in line.split(',')]
+                    try:
+                        values = [float(val) for val in line.split(',')]
+                    except:
+                        continue
 
                     # Αν το αρχείο εξόδου είναι .xlsx, καταγράφουμε τη γραμμή
                     if self.get_file_extension() == ".xlsx":
