@@ -15,6 +15,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import warnings
 import os
 import requests  
+from itertools import zip_longest
 
 # Απενεργοποίηση προειδοποιήσεων από matplotlib
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
@@ -41,7 +42,7 @@ class SerialDataLogger:
 
         # Επιλογή ThingSpeak
         self.send_to_thingspeak = tk.BooleanVar(value=False)
-        self.thingspeak_api_key = tk.StringVar(value="8Q9GSIRNOAP2FXDY")  # Αρχικό API Key
+        self.thingspeak_api_key = tk.StringVar(value="SOINXIWML0O99YRI")  # Αρχικό API Key
 
         self.create_widgets()
 
@@ -123,32 +124,49 @@ class SerialDataLogger:
         self.sampling_rate_value_label.grid(row=6, column=2, padx=5, pady=3, sticky="w")
         self.sampling_rate_slider.config(command=self.update_sampling_rate_label)
 
+        # 8 fields for the column titles
+        fields_frame = ttk.Frame(self.root)
+        fields_frame.grid(row=7, column=0, columnspan=3, padx=5, pady=(10, 5), sticky="ew")
+
+        for c in range(4): fields_frame.grid_columnconfigure(c, weight=1)
+        self.extra_text_vars = [tk.StringVar() for _ in range(8)]
+        self.extra_entries = []
+    
+        for i in range(8):
+            r = i // 4
+            c = i % 4
+            e = ttk.Entry(fields_frame, textvariable=self.extra_text_vars[i])
+            e.grid(row=r, column=c, padx=4, pady=4, sticky="ew")
+            self.extra_entries.append(e)
+
+        for i, v in enumerate(self.extra_text_vars): v.set(f"Field {i+1}")
+
         # Κουμπιά έναρξης, τερματισμού και αποθήκευσης
         start_button = ttk.Button(self.root, text="Έναρξη καταγραφής", command=self.start_logging)
-        start_button.grid(row=7, column=0, pady=3)
+        start_button.grid(row=8, column=0, pady=3)
         stop_button = ttk.Button(self.root, text="Τερματισμός καταγραφής", command=self.stop_logging)
-        stop_button.grid(row=7, column=1, pady=3)
+        stop_button.grid(row=8, column=1, pady=3)
         save_button = ttk.Button(self.root, text="Αποθήκευση", command=self.save_data)
-        save_button.grid(row=7, column=2, pady=3)
+        save_button.grid(row=8, column=2, pady=3)
 
         # Περιοχή εμφάνισης δεδομένων
         self.data_listbox = tk.Listbox(self.root, height=10)
-        self.data_listbox.grid(row=8, column=0, columnspan=3, padx=5, pady=3, sticky="nsew")
+        self.data_listbox.grid(row=9, column=0, columnspan=3, padx=5, pady=3, sticky="nsew")
 
         # Διάγραμμα
         figure = Figure(figsize=(7, 4), dpi=100)
         self.ax = figure.add_subplot(1, 1, 1)
         self.canvas = FigureCanvasTkAgg(figure, master=self.root)
-        self.canvas.get_tk_widget().grid(row=9, column=0, columnspan=3, pady=3, sticky="nsew")
+        self.canvas.get_tk_widget().grid(row=10, column=0, columnspan=3, pady=3, sticky="nsew")
 
         # Ρύθμιση διαστάσεων πλέγματος
         self.root.columnconfigure(1, weight=1)
-        self.root.rowconfigure(8, weight=1)
+        self.root.rowconfigure(9, weight=1)
 
     def update_sampling_rate_label(self, value):
         self.sampling_rate_value_label.config(text=f"{int(float(value))} ms")
 
-    def send_to_thingspeak_api(self, value):
+    def send_to_thingspeak_api(self, values):
         if self.send_to_thingspeak.get():  # Έλεγχος αν το checkbox είναι ενεργοποιημένο
             try:
                 api_key = self.thingspeak_api_key.get()
@@ -156,10 +174,11 @@ class SerialDataLogger:
                     messagebox.showwarning("API Key", "Παρακαλώ εισάγετε το API Key.")
                     return
                 url = f"https://api.thingspeak.com/update?api_key={api_key}"
-                payload = {'field1': value}
+                payload = {label: value for label, value in zip([f"field{i+1}" for i in range(len(values))], values)}
                 response = requests.get(url, params=payload)
+                # print(payload, response)
                 if response.status_code == 200:
-                    print(value)
+                    print(values)
                 else:
                     messagebox.showerror("Σφάλμα αποστολής στο ThingSpeak.")
             except Exception as e:
@@ -181,7 +200,7 @@ class SerialDataLogger:
         file_extension = self.get_file_extension()
         if file_extension == ".xlsx":
             try:
-                self.wb.save(self.output_path.get())
+                self.wb.save(self.output_path.get()) #type:ignore
                 messagebox.showinfo("Αποθήκευση", "Τα δεδομένα αποθηκεύτηκαν με επιτυχία σε .xlsx.")
             except Exception as e:
                 messagebox.showerror("Σφάλμα αποθήκευσης", str(e))
@@ -189,8 +208,11 @@ class SerialDataLogger:
             try:
                 with open(self.output_path.get(), mode="w", newline="", encoding="utf-8") as file:
                     writer = csv.writer(file)
-                    writer.writerow(["Time", "Value"])
-                    writer.writerows(zip(self.times, self.values))
+                    labels = [v.get() for v in self.extra_text_vars if v.get() != ""]
+                    writer.writerow(["Time"] + labels)
+                    data = list(zip_longest(*self.values, fillvalue=0.))
+                    data = [list(col) for col in data]
+                    writer.writerows(zip(self.times, *data))
                 messagebox.showinfo("Αποθήκευση", "Τα δεδομένα αποθηκεύτηκαν με επιτυχία σε .csv.")
             except Exception as e:
                 messagebox.showerror("Σφάλμα αποθήκευσης", str(e))
@@ -205,7 +227,7 @@ class SerialDataLogger:
             except (FileNotFoundError, KeyError):
                 wb = Workbook()
                 sheet = wb.active
-                sheet.append(["Time", "Value"])
+                sheet.append(["Time"] + [v.get() for v in self.extra_text_vars if v.get() != ""]) #type:ignore
                 wb.save(path)
             return wb, sheet
         elif file_extension == ".csv":
@@ -237,7 +259,7 @@ class SerialDataLogger:
         if not self.serial_port:
             return
 
-        self.wb, self.sheet = self.setup_file()
+        self.wb, self.sheet = self.setup_file() #type:ignore
         self.stop_event.clear()
 
         record_thread = threading.Thread(target=self.record_data)
@@ -256,28 +278,32 @@ class SerialDataLogger:
         else:
             messagebox.showinfo("Τερματισμός", "Η καταγραφή είχε ήδη διακοπεί.")
 
+    # Convert value to float if you can
+    def convert(self, val:str):
+        try:
+            return float(val)
+        except:
+            return val
+
     def record_data(self):
         try:
             while not self.stop_event.is_set():
-                line = self.serial_port.readline().decode('utf-8', errors='ignore').strip()
+                line = self.serial_port.readline().decode('utf-8', errors='ignore').strip() #type:ignore 
                 if line:
                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    
-                    # Ελέγχουμε αν η γραμμή περιέχει μόνο αριθμούς
-                    if line.replace('.', '', 1).isdigit():  # Ελέγχει αν είναι αριθμός
-                        value = float(line)  # Αν είναι αριθμός, τον αποθηκεύουμε ως float
-                    else:
-                        value = line  # Αν περιέχει γράμματα, το κρατάμε ως κείμενο
-                    
+
+                    # Convert values
+                    values = [self.convert(val) for val in line.split(',')]
+
                     # Αν το αρχείο εξόδου είναι .xlsx, καταγράφουμε τη γραμμή
                     if self.get_file_extension() == ".xlsx":
-                        self.sheet.append([timestamp, value])
+                        self.sheet.append([timestamp, *values]) #type:ignore
                     
                     # Βάζουμε τα δεδομένα στην ουρά για την απεικόνιση
-                    self.data_queue.put((timestamp, value))
+                    self.data_queue.put((timestamp, values)) #type:ignore
 
                     # Στέλνουμε τα δεδομένα στο ThingSpeak
-                    self.send_to_thingspeak_api(value)
+                    self.send_to_thingspeak_api(values) #type:ignore
                     
                     # Προσθήκη καθυστέρησης ανάλογα με την ταχύτητα δειγματοληψίας
                     threading.Event().wait(self.sampling_rate.get() / 1000)
@@ -287,15 +313,19 @@ class SerialDataLogger:
 
     def update_plot(self):
         while not self.data_queue.empty():
-            timestamp, value = self.data_queue.get()
+            timestamp, values = self.data_queue.get()
             self.times.append(len(self.times) + 1)
-            self.values.append(value)
+            self.values.append(values)
 
-            self.data_listbox.insert(tk.END, f"{timestamp}: {value}")
+            self.data_listbox.insert(tk.END, f"{timestamp}: {values}")
             self.data_listbox.see(tk.END)
 
         self.ax.clear()
-        self.ax.plot(self.times, self.values, label="Μέτρηση")
+        data = list(zip_longest(*self.values, fillvalue=0.))
+        data = [list(col) for col in data]
+        data = [[x if isinstance(x,float) else 0 for x in col] for col in data]
+        for i,col in enumerate(data):
+            self.ax.plot(self.times, col, label=self.extra_text_vars[i].get())
         self.ax.set_xlabel("Αριθμός μετρήσεων")
         self.ax.set_ylabel("Μέτρηση")
         self.ax.legend()
