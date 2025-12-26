@@ -61,7 +61,7 @@ class SerialDataLogger:
             "    (με [Aνανέωση] διαβάζονται ξανά οι διαθέσιμες θύρες)\n\n"
             "2. Ορίσετε το Baudrate για τη σύνδεση.\n"
             "    (η τιμή που προτείνεται είναι αρκετή)\n\n"
-            "3. Επιλέξετε αν οι μετρήσεις θα εξάγονται στο ThinkSpeeak.\n"
+            "3. Επιλέξετε αν οι μετρήσεις (μέχρι 8) θα εξάγονται στο ThinkSpeeak.\n"
             "    (οπότε θα χρειαστεί να oρίσετε και το API Key)\n\n"
             "4. Επιλέξετε την καθυστέρηση μεταξύ των δειγματοληψιών\n\n\n\n"
             "Πρέπει να:\n\n"
@@ -139,7 +139,7 @@ class SerialDataLogger:
             e.grid(row=r, column=c, padx=4, pady=4, sticky="ew")
             self.extra_entries.append(e)
 
-        for i, v in enumerate(self.extra_text_vars): v.set(f"Field {i+1}")
+        for i, v in enumerate(self.extra_text_vars): v.set(f"Τιμή {i+1}")
 
         # Κουμπιά έναρξης, τερματισμού και αποθήκευσης
         start_button = ttk.Button(self.root, text="Έναρξη καταγραφής", command=self.start_logging)
