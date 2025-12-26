@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest, macos-13]
+        os: [ubuntu-latest, windows-latest, macos-latest, macos-15-intel]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -90,7 +90,7 @@ jobs:
       - name: Download Mac x86_64 executable artifact
         uses: actions/download-artifact@v4
         with:
-          name: macos-13-executable
+          name: macos-15-intel-executable
           path: macos-x86_64
 
       - name: Download Mac arm64 executable artifact
@@ -132,7 +132,7 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./macos-x86_64/macos-13.zip # Path to the macOS executable
+          asset_path: ./macos-x86_64/macos-15-intel.zip # Path to the macOS executable
           asset_name: BO-2-data-to-excel-macos-x86_64.zip # Name of the asset
           asset_content_type: application/octet-stream
         env:
