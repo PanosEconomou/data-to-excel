@@ -16,6 +16,7 @@ import warnings
 import os
 import requests  
 from itertools import zip_longest
+from re import sub
 
 # Απενεργοποίηση προειδοποιήσεων από matplotlib
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
@@ -278,6 +279,12 @@ class SerialDataLogger:
         else:
             messagebox.showinfo("Τερματισμός", "Η καταγραφή είχε ήδη διακοπεί.")
 
+    def convert(self,x):
+        try:
+            return float(x)
+        except:
+            return x
+
     def record_data(self):
         try:
             while not self.stop_event.is_set():
@@ -286,10 +293,7 @@ class SerialDataLogger:
                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
                     # Convert values
-                    try:
-                        values = [float(val) for val in line.split(',')]
-                    except:
-                        continue
+                    values = [self.convert(val) for val in line.replace(':',',').split(',')]
 
                     # Αν το αρχείο εξόδου είναι .xlsx, καταγράφουμε τη γραμμή
                     if self.get_file_extension() == ".xlsx":
@@ -307,6 +311,15 @@ class SerialDataLogger:
             if not self.stop_event.is_set():
                 messagebox.showerror("Σφάλμα καταγραφής", str(e))
 
+    def plot_convert(self,x):
+        if isinstance(x,float):
+            return x
+        else:
+            try:
+                return float(sub(pattern=r"\D",repl="",string=x))
+            except:
+                return 0.0
+
     def update_plot(self):
         while not self.data_queue.empty():
             timestamp, values = self.data_queue.get()
@@ -319,7 +332,7 @@ class SerialDataLogger:
         self.ax.clear()
         data = list(zip_longest(*self.values, fillvalue=0.))
         data = [list(col) for col in data]
-        data = [[x if isinstance(x,float) else 0 for x in col] for col in data]
+        data = [[self.plot_convert(x) for x in col] for col in data] 
         for i,col in enumerate(data):
             self.ax.plot(self.times, col, label="" if i > 7 else self.extra_text_vars[i].get())
         self.ax.set_xlabel("Αριθμός μετρήσεων")
