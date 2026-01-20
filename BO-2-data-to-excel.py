@@ -1,4 +1,5 @@
-#Vassilis Economou 16/01/2025 v.02
+#Vassilis Economou  16/01/2025 v.02
+#                   20/01/2026 v.2.1    
 
 import openpyxl
 from openpyxl import Workbook
@@ -16,7 +17,6 @@ import warnings
 import os
 import requests  
 from itertools import zip_longest
-from re import sub
 
 # Απενεργοποίηση προειδοποιήσεων από matplotlib
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
@@ -28,12 +28,13 @@ class SerialDataLogger:
 
         # Προσθήκη εικονιδίου και τίτλου
         #self.root.iconbitmap("icon.ico")  # Αντικαταστήστε με το όνομα του αρχείου εικονιδίου
-        title_label = ttk.Label(self.root, text="Serial Data Logger  [Βασίλης Οικονόμου v.02]", font=("Arial", 15, "bold"))
+        title_label = ttk.Label(self.root, text="Serial Data Logger  [Βασίλης Οικονόμου v.2.1]", font=("Arial", 15, "bold"))
         title_label.grid(row=0, column=0, columnspan=3, pady=10)
 
         # Αρχικοποίηση μεταβλητών
         self.serial_port = None
         self.baudrate = tk.IntVar(value=9600)
+        self.max_val_limit = tk.IntVar(value=1024)  # Νέα μεταβλητή με προεπιλογή το 1024
         self.output_path = tk.StringVar(value=os.path.join(os.getcwd(), "BO_SDL.xlsx"))
         self.times = []
         self.values = []
@@ -43,7 +44,7 @@ class SerialDataLogger:
 
         # Επιλογή ThingSpeak
         self.send_to_thingspeak = tk.BooleanVar(value=False)
-        self.thingspeak_api_key = tk.StringVar(value="SOINXIWML0O99YRI")  # Αρχικό API Key
+        self.thingspeak_api_key = tk.StringVar(value="0J62FHGN0IS42VNQ")  # Αρχικό API Key
 
         self.create_widgets()
 
@@ -52,7 +53,7 @@ class SerialDataLogger:
         # Δημιουργία νέου παραθύρου
         instructions_window = tk.Toplevel(self.root)
         instructions_window.title("Οδηγίες")
-        instructions_window.geometry("500x600")
+        instructions_window.geometry("700x700")
 
         # Εισαγωγή κειμένου με οδηγίες
         instructions_text = (
@@ -61,10 +62,12 @@ class SerialDataLogger:
             "1. Eπιλέξετε τη θύρα από την οποία θα διαβάσετε δεδομένα.\n"
             "    (με [Aνανέωση] διαβάζονται ξανά οι διαθέσιμες θύρες)\n\n"
             "2. Ορίσετε το Baudrate για τη σύνδεση.\n"
-            "    (η τιμή που προτείνεται είναι αρκετή)\n\n"
-            "3. Επιλέξετε αν οι μετρήσεις (μέχρι 8, ','/':' delimited) θα εξάγονται στο ThinkSpeak.\n"
+            "3. Επιλέξετε αν οι μετρήσεις (μέχρι 8) θα εξάγονται στο ThinkSpeeak.\n"
             "    (οπότε θα χρειαστεί να oρίσετε και το API Key)\n\n"
-            "4. Επιλέξετε την καθυστέρηση μεταξύ των δειγματοληψιών\n\n\n\n"
+            "4. Επιλέξετε την καθυστέρηση μεταξύ των δειγματοληψιών\n"
+            "5. Επιλέξετε το άνω όριο των τιμών για το διάγραμμα\n"
+            "6. Επιλέξετε τους τίτλους των στηλών στο .xlsx\n\n\n\n"
+            
             "Πρέπει να:\n\n"
             "Επιλέξετε το όνομα του αρχείου και τον τύπο του (.xlsx ή .csv), για αποθήκευση.\n\n\n"
             "_______________________\n\n"
@@ -72,7 +75,10 @@ class SerialDataLogger:
             "Πατήστε [Τερματισμός] για να σταματήσετε την καταγραφή.\n\n"
             "Πατήστε [Αποθήκευση] για να αποθηκεύσετε τα δεδομένα.\n"
             "    (μπορείτε να αποθηκεύετε και πριν τον τερματισμό τιμές στο αρχείο\n"
-            "    ...όσες φορές θέλετε/χρειαστεί)\n\n\n\n"
+            "    ...όσες φορές θέλετε/χρειαστεί)\n"
+            "Πατήστε [Καθαρισμός] για να καθαρίσετε το διάγραμμα.\n\n\n\n"
+           
+          
             "Ελπίζω να σας φανεί χρήσιμη η εφαρμογή αυτή.\n"
         )
         # Εμφάνιση κειμένου
@@ -85,7 +91,8 @@ class SerialDataLogger:
     def create_widgets(self):
         # Προσθήκη κουμπιού για οδηγίες χρήσης
         instructions_button = ttk.Button(self.root, text="  Οδηγίες  ", command=self.open_instructions_window)
-        instructions_button.grid(row=1, column=2, pady=3)
+        instructions_button.grid(row=1, column=3, pady=3)
+        
         # Επιλογή θύρας
         ports_label = ttk.Label(self.root, text="Θα διαβάσω από τη Θύρα:")
         ports_label.grid(row=2, column=0, padx=5, pady=3, sticky="w")
@@ -116,49 +123,86 @@ class SerialDataLogger:
         api_key_entry = ttk.Entry(self.root, textvariable=self.thingspeak_api_key)
         api_key_entry.grid(row=5, column=1, padx=5, pady=3, sticky="ew")
 
-        # Slider για την ταχύτητα δειγματοληψίας
-        sampling_rate_label = ttk.Label(self.root, text="Καθυστέρηση μεταξύ των δειγματοληψιών (ms):")
+
+        # --- Γραμμή 6: Ταχύτητα Δειγματοληψίας και Όριο Τιμής ---  
+        # 1. Sampling Rate Elements
+        sampling_rate_label = ttk.Label(self.root, text="Καθυστέρηση (ms):")
         sampling_rate_label.grid(row=6, column=0, padx=5, pady=3, sticky="w")
-        self.sampling_rate_slider = ttk.Scale(self.root, from_=0, to=5000, variable=self.sampling_rate, orient=tk.HORIZONTAL)
-        self.sampling_rate_slider.grid(row=6, column=1, padx=5, pady=3, sticky="ew")
-        self.sampling_rate_value_label = ttk.Label(self.root, text=f"{self.sampling_rate.get()} ms")
-        self.sampling_rate_value_label.grid(row=6, column=2, padx=5, pady=3, sticky="w")
+        
+        # Δημιουργούμε ένα μικρό frame για να βάλουμε το slider και την τιμή του μαζί στη στήλη 1
+        slider_frame = ttk.Frame(self.root)
+        slider_frame.grid(row=6, column=1, padx=5, pady=3, sticky="ew")
+        
+        self.sampling_rate_slider = ttk.Scale(slider_frame, from_=0, to=5000, variable=self.sampling_rate, orient=tk.HORIZONTAL)
+        self.sampling_rate_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        self.sampling_rate_value_label = ttk.Label(slider_frame, text=f"{self.sampling_rate.get()} ms")
+        self.sampling_rate_value_label.pack(side=tk.LEFT, padx=5)
         self.sampling_rate_slider.config(command=self.update_sampling_rate_label)
 
-        # 8 fields for the column titles
-        fields_frame = ttk.Frame(self.root)
-        fields_frame.grid(row=7, column=0, columnspan=3, padx=5, pady=(10, 5), sticky="ew")
+        # 2. Threshold Elements (Στην ίδια γραμμή, στήλη 2)
+        threshold_frame = ttk.Frame(self.root)
+        threshold_frame.grid(row=6, column=2, padx=5, pady=3, sticky="w")
+        
+        threshold_label = ttk.Label(threshold_frame, text="Άνω όριο τιμών:")
+        threshold_label.pack(side=tk.LEFT, padx=2)
+        
+        threshold_entry = ttk.Entry(threshold_frame, textvariable=self.max_val_limit, width=8)
+        threshold_entry.pack(side=tk.LEFT, padx=2)
 
-        for c in range(4): fields_frame.grid_columnconfigure(c, weight=1)
+
+
+        # 8 fields for the column titles - Όλα σε μία γραμμή
+        sampling_rate_label = ttk.Label(self.root, text="Ονόματα στηλών στο .xlsx:")
+        sampling_rate_label.grid(row=7, column=0, padx=5, pady=3, sticky="w")
+
+        fields_frame = ttk.Frame(self.root)
+        fields_frame.grid(row=7, column=1, columnspan=3, padx=5, pady=(10, 5), sticky="ew")
+
+        # Ρύθμιση 8 στηλών με ίσο βάρος
+        for c in range(8): 
+            fields_frame.grid_columnconfigure(c, weight=1)
+            
         self.extra_text_vars = [tk.StringVar() for _ in range(8)]
         self.extra_entries = []
     
         for i in range(8):
-            r = i // 4
-            c = i % 4
-            e = ttk.Entry(fields_frame, textvariable=self.extra_text_vars[i])
-            e.grid(row=r, column=c, padx=4, pady=4, sticky="ew")
+            # width=10 κάνει το κουτάκι μικρό οπτικά
+            e = ttk.Entry(fields_frame, textvariable=self.extra_text_vars[i], width=10)
+            e.grid(row=0, column=i, padx=2, pady=4, sticky="ew")
             self.extra_entries.append(e)
 
-        for i, v in enumerate(self.extra_text_vars): v.set(f"Τιμή {i+1}")
+        for i, v in enumerate(self.extra_text_vars): 
+            v.set(f"Τιμή {i+1}")
 
-        # Κουμπιά έναρξης, τερματισμού και αποθήκευσης
-        start_button = ttk.Button(self.root, text="Έναρξη καταγραφής", command=self.start_logging)
-        start_button.grid(row=8, column=0, pady=3)
-        stop_button = ttk.Button(self.root, text="Τερματισμός καταγραφής", command=self.stop_logging)
-        stop_button.grid(row=8, column=1, pady=3)
-        save_button = ttk.Button(self.root, text="Αποθήκευση", command=self.save_data)
-        save_button.grid(row=8, column=2, pady=3)
+
+        # Κουμπιά ελέγχου στη σειρά 8
+        self.start_button = ttk.Button(self.root, text="Έναρξη καταγραφής", command=self.start_logging)
+        self.start_button.grid(row=8, column=0, padx=5, pady=3, sticky="ew")
+
+        self.stop_button = ttk.Button(self.root, text="Τερματισμός καταγραφής", command=self.stop_logging)
+        self.stop_button.grid(row=8, column=1, padx=5, pady=3, sticky="ew")
+
+        # Μετακινούμε την Αποθήκευση στη στήλη 4 (θα χρειαστεί να ορίσετε columnspan=4 στο listbox/διάγραμμα)
+        self.save_button = ttk.Button(self.root, text="Αποθήκευση", command=self.save_data)
+        self.save_button.grid(row=8, column=2, padx=5, pady=3, sticky="ew") 
+
+        # Νέο κουμπί Καθαρισμού
+        self.clear_button = ttk.Button(self.root, text="Καθαρισμός", command=self.clear_data)
+        self.clear_button.grid(row=8, column=3, padx=5, pady=3, sticky="ew")
+
+        
+    
 
         # Περιοχή εμφάνισης δεδομένων
         self.data_listbox = tk.Listbox(self.root, height=10)
-        self.data_listbox.grid(row=9, column=0, columnspan=3, padx=5, pady=3, sticky="nsew")
+        self.data_listbox.grid(row=9, column=0, columnspan=4, padx=5, pady=3, sticky="nsew")
 
         # Διάγραμμα
         figure = Figure(figsize=(7, 4), dpi=100)
         self.ax = figure.add_subplot(1, 1, 1)
         self.canvas = FigureCanvasTkAgg(figure, master=self.root)
-        self.canvas.get_tk_widget().grid(row=10, column=0, columnspan=3, pady=3, sticky="nsew")
+        self.canvas.get_tk_widget().grid(row=10, column=0, columnspan=4, pady=3, sticky="nsew")
 
         # Ρύθμιση διαστάσεων πλέγματος
         self.root.columnconfigure(1, weight=1)
@@ -279,71 +323,100 @@ class SerialDataLogger:
         else:
             messagebox.showinfo("Τερματισμός", "Η καταγραφή είχε ήδη διακοπεί.")
 
-    def convert(self,x):
-        try:
-            return float(x)
-        except:
-            return x
-
     def record_data(self):
         try:
             while not self.stop_event.is_set():
-                line = self.serial_port.readline().decode('utf-8', errors='ignore').strip() #type:ignore 
+                line = self.serial_port.readline().decode('utf-8', errors='ignore').strip() 
                 if line:
                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    # Λήψη του ορίου από το GUI
+                    current_max = self.max_val_limit.get()
+                    
+                    # Αντικατάσταση διαχωριστικών
+                    line = line.replace(';', ',').replace(':', ',')
+                    raw_items = [item.strip() for item in line.split(',') if item.strip()]
+                    
+                    clean_numeric_values = []
+                    for item in raw_items:
+                        try:
+                            val = float(item)
+                            # Χρήση της μεταβλητής current_max
+                            if val > current_max:
+                                clean_numeric_values.append(0.0)
+                            else:
+                                clean_numeric_values.append(val)
+                        except ValueError:
+                            clean_numeric_values.append(0.0)
 
-                    # Convert values
-                    values = [self.convert(val) for val in line.replace(':',',').split(',')]
+                    # 1. Εμφάνιση στην ουρά
+                    self.data_queue.put((timestamp, clean_numeric_values, raw_items))
 
-                    # Αν το αρχείο εξόδου είναι .xlsx, καταγράφουμε τη γραμμή
+                    # 2. Αποθήκευση στο Excel (όλα τα raw δεδομένα)
                     if self.get_file_extension() == ".xlsx":
-                        self.sheet.append([timestamp, *values]) #type:ignore
+                        excel_row = raw_items[:8]
+                        padding = [None] * (8 - len(excel_row))
+                        self.sheet.append([timestamp, *excel_row, *padding])
                     
-                    # Βάζουμε τα δεδομένα στην ουρά για την απεικόνιση
-                    self.data_queue.put((timestamp, values)) #type:ignore
-
-                    # Στέλνουμε τα δεδομένα στο ThingSpeak
-                    self.send_to_thingspeak_api(values) #type:ignore
+                    # 3. Αποστολή στο ThingSpeak
+                    self.send_to_thingspeak_api(clean_numeric_values)
                     
-                    # Προσθήκη καθυστέρησης ανάλογα με την ταχύτητα δειγματοληψίας
                     threading.Event().wait(self.sampling_rate.get() / 1000)
         except Exception as e:
             if not self.stop_event.is_set():
-                messagebox.showerror("Σφάλμα καταγραφής", str(e))
-
-    def plot_convert(self,x):
-        if isinstance(x,float):
-            return x
-        else:
-            try:
-                return float(sub(pattern=r"\D",repl="",string=x))
-            except:
-                return 0.0
+                messagebox.showerror("Σφάλμα", str(e))
 
     def update_plot(self):
+        # 1. Διαβάζουμε όλα τα νέα δεδομένα από την ουρά
         while not self.data_queue.empty():
-            timestamp, values = self.data_queue.get()
+            timestamp, numeric_values, raw_items = self.data_queue.get()
+            
+            # Προσθήκη των καθαρών αριθμητικών τιμών για το διάγραμμα
             self.times.append(len(self.times) + 1)
-            self.values.append(values)
+            self.values.append(numeric_values)
 
-            self.data_listbox.insert(tk.END, f"{timestamp}: {values}")
+            # Εμφάνιση των αρχικών δεδομένων (με κείμενα) στο Listbox
+            self.data_listbox.insert(tk.END, f"{timestamp}: {', '.join(raw_items)}")
             self.data_listbox.see(tk.END)
 
-        self.ax.clear()
-        data = list(zip_longest(*self.values, fillvalue=0.))
-        data = [list(col) for col in data]
-        data = [[self.plot_convert(x) for x in col] for col in data] 
-        for i,col in enumerate(data):
-            self.ax.plot(self.times, col, label="" if i > 7 else self.extra_text_vars[i].get())
-        self.ax.set_xlabel("Αριθμός μετρήσεων")
-        self.ax.set_ylabel("Μέτρηση")
-        self.ax.legend()
-        self.canvas.draw()
+        # 2. Σχεδιασμός του διαγράμματος αν υπάρχουν δεδομένα
+        if self.times:
+            self.ax.clear()
+            # Οργάνωση των δεδομένων σε στήλες (μέχρι 8 σειρές)
+            data = list(zip_longest(*self.values, fillvalue=0.0))
+            data = [list(col) for col in data]
+            
+            for i, col in enumerate(data):
+                if i < 8: # Περιορισμός στις 8 σειρές
+                    label = self.extra_text_vars[i].get()
+                    self.ax.plot(self.times, col, label=label)
+            
+            self.ax.set_xlabel("Αριθμός μετρήσεων")
+            self.ax.set_ylabel("Τιμή")
+            self.ax.legend()
+            self.canvas.draw()
 
-
+        # 3. ΣΗΜΑΝΤΙΚΟ: Επαναλαμβανόμενη κλήση της update_plot για να συνεχιστεί η ροή
         if not self.stop_event.is_set():
-            # Μειώνουμε την καθυστέρηση για πιο συχνή ανανέωση
-            self.root.after(50, self.update_plot)
+            self.root.after(100, self.update_plot)
+    
+    def clear_data(self):
+        # Επιβεβαίωση από τον χρήστη
+        if messagebox.askyesno("Καθαρισμός", "Θέλετε σίγουρα να διαγράψετε το γράφημα και το ιστορικό καταγραφής;"):
+            # Μηδενισμός λιστών δεδομένων
+            self.times = []
+            self.values = []
+            
+            # Καθαρισμός του Listbox
+            self.data_listbox.delete(0, tk.END)
+            
+            # Καθαρισμός του γραφήματος
+            self.ax.clear()
+            self.ax.set_xlabel("Αριθμός μετρήσεων")
+            self.ax.set_ylabel("Τιμή")
+            self.canvas.draw()
+            
+            messagebox.showinfo("Καθαρισμός", "Τα δεδομένα καθαρίστηκαν.")
 
 if __name__ == "__main__":
     root = tk.Tk()
