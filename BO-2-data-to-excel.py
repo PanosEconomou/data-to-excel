@@ -47,14 +47,15 @@ class SerialDataLogger:
                 "save": "Αποθήκευση στο αρχείο",
                 "clear": "Καθαρισμός",
                 "graph_win": "Διάγραμμα [με ανώτατο όριο τιμών (στον άξονα y):",
-                "scroll": "Scrolling προς τα αριστερά",
-                "points": "σημεία].",
-                "log_win": "Kαταγραφή τιμών από τη θύρα",
+                "scroll": "κύληση προς αριστερά",
+                "points": "μετρήσεις].",
+                "log_win": "Kαταγραφή τιμών",
+                "listbox_limit": "(γραμμές προβολής μέχρι):",
                 "copy": "Αντιγραφή",
                 "export_csv": "Εξαγωγή επιλεγμένων σε .csv",
                 "export_xlsx": "Εξαγωγή επιλεγμένων σε .xlsx",
-                "lang_btn": "🇬🇧 English",
-                "listbox_limit": "με όριο γραμμών προβολής:"
+                "lang_btn": "🇬🇧 English"
+                
                 
             },
             "EN": {
@@ -75,13 +76,14 @@ class SerialDataLogger:
                 "clear": "Clear",
                 "graph_win": "Graph Window [Upper limit threshold:",
                 "scroll": "Scroll to the left",
-                "points": "points].",
+                "points": "measurments].",
                 "log_win": "Serial port data log",
+                "listbox_limit": "(Listbox line limit):",
                 "copy": "Copy",
                 "export_csv": "Export selected to .csv",
                 "export_xlsx": "Export selected to .xlsx",
-                "lang_btn": "🇬🇷 Ελληνικά",
-                "listbox_limit": "Listbox line limit:"
+                "lang_btn": "🇬🇷 Ελληνικά"
+              
                 
 
             }
@@ -101,7 +103,7 @@ class SerialDataLogger:
         self.sampling_rate = tk.IntVar(value=0)
         self.send_to_thingspeak = tk.BooleanVar(value=False)
         self.thingspeak_api_key = tk.StringVar(value="0J62FHGN0IS42VNQ")
-        self.scroll_mode = tk.BooleanVar(value=False)
+        self.scroll_mode = tk.BooleanVar(value=True)
         self.scroll_window_size = tk.IntVar(value=500)
         self.actual_timestamps = []
         self.listbox_limit = tk.IntVar(value=80000) # Προεπιλεγμένο όριο έχει δοκιμαστεί 50000 γραμμές
@@ -139,7 +141,7 @@ class SerialDataLogger:
         self.scroll_chk.config(text=t["scroll"])
         self.points_lbl.config(text=t["points"])
         self.log_win_lbl.config(text=t["log_win"])
-        self.listbox_lbl.config(text=" | " + t["listbox_limit"])
+        self.listbox_lbl.config(text=t["listbox_limit"])
         self.ts_interval_lbl.config(text=t["ts_interval"])
        
         # Ενημέρωση Context Menu
@@ -268,7 +270,7 @@ class SerialDataLogger:
         self.log_win_lbl = ttk.Label(data_label_frame, text=t["log_win"])
         self.log_win_lbl.pack(side=tk.LEFT)
         # Προσθήκη του ορίου 
-        self.listbox_lbl = ttk.Label(data_label_frame, text=" | " + t["listbox_limit"])
+        self.listbox_lbl = ttk.Label(data_label_frame, text= t["listbox_limit"])
         self.listbox_lbl.pack(side=tk.LEFT, padx=(5, 2))
         self.listbox_entry = ttk.Entry(data_label_frame, textvariable=self.listbox_limit, width=8)
         self.listbox_entry.pack(side=tk.LEFT)
@@ -305,7 +307,7 @@ class SerialDataLogger:
     def open_instructions_window(self):
         instructions_window = tk.Toplevel(self.root)
         instructions_window.title("Οδηγίες / Instructions")
-        instructions_window.geometry("750x700")
+        instructions_window.geometry("900x700")
         
         text_el = (
             "Καταγραφή δεδομένων από serial (Serial Data Logger).\n\n\n"
@@ -319,8 +321,10 @@ class SerialDataLogger:
             "5. Επιλέξετε αν οι μετρήσεις (μέχρι 8) θα εξάγονται ταυτόχρονα στο ThinkSpeeak το οποίο δέχεται τιμές κάθε 15''.\n"
             "   (Θα χρειαστεί να oρίσετε και το API Key που θα βρείτε στην αντίστοιχη επιλογή της διαδικτυακής εφαρμογής ThinkSpeak).\n\n"
             "6. Επιλέξετε την καθυστέρηση μεταξύ των δειγματοληψιών (καλό είναι να ρυθμίζεται από το πρόγραμμα που τις εξάγει)\n\n"
-            "7. Επιλέξετε αν θα scrollάρει το διάγραμμα και για πόσα σημεία\n\n"
-            "8. Επιλέξετε το άνω όριο των τιμών που θα εμφανίζονται  στο διάγραμμα\n\n\n\n"
+            "7. Επιλέξετε αν θα κυλίεται το διάγραμμα προς τα αριστερά και για πόσες τιμές\n\n"
+            "8. Επιλέξετε κάθε ποσες γραμμές θα διαγράφεται το 10% από το παράθυρο προβολής τιμών\n"
+            "   (Στο αρχείο που θα αποθηκεύετε στο τέλος θα είναι όλες οι τιμές  ανεξάρτητα από το πόσες εμφανίζονται στο παράθυρο μετρήσεων\n\n"
+            "9. Επιλέξετε το άνω όριο των τιμών που θα εμφανίζονται στο διάγραμμα (όριο άξονα y)\n\n\n\n"
             
             "Λειτουργίες:\n"
             "_______________________\n\n"
@@ -351,8 +355,10 @@ class SerialDataLogger:
             "5. Choose if the measurements (up to 8) will be exported simultaneously to ThingSpeak, which accepts values every 15''.\n"
             "   (You will also need to provide the API Key found in the corresponding option of the ThingSpeak web application).\n\n"
             "6. Select the delay between samples (it is recommended to be regulated by the source program exporting them)\n\n"
-            "7. Choose whether the chart will scroll and for how many points\n\n"
-            "8. Select the upper limit for the values displayed on the chart\n\n\n\n"
+            "7. Choose whether the chart will scroll and for how many measurements\n\n"
+            "8. Choose how many lines to buffer before clearing 10% of the display window.\n"
+            "   (The saved file will still contain ALL values, regardless of the display limit.\n\n"
+            "9. Select the upper limit for the values displayed on the chart\n\n\n\n"
             
             "Functions:\n"
             "_______________________\n\n"
@@ -371,8 +377,24 @@ class SerialDataLogger:
         )
         
         display_text = text_el if self.current_lang == "EL" else text_en
-        tk.Label(instructions_window, text=display_text, justify=tk.LEFT, font=("Arial", 11)).pack(padx=10, pady=10)
-        ttk.Button(instructions_window, text="OK", command=instructions_window.destroy).pack(pady=5)
+        # Δημιουργία πλαισίου για το κείμενο και την μπάρα κύλισης
+        frame = ttk.Frame(instructions_window)
+        frame.pack(expand=True, fill="both", padx=10, pady=10)
+        scrollbar = ttk.Scrollbar(frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        # font=("Arial", 14) 
+        text_widget = tk.Text(frame, wrap=tk.WORD, font=("Arial", 14), 
+                      yscrollcommand=scrollbar.set, 
+                      bg="#E8E3E3", 
+                      fg="#00008B",  
+                      relief="flat")
+        text_widget.insert(tk.END, display_text)
+        text_widget.config(state=tk.DISABLED) # Για να μην μπορεί να το σβήσει ο χρήστης
+        text_widget.pack(side=tk.LEFT, expand=True, fill="both")
+        scrollbar.config(command=text_widget.yview)
+        ttk.Button(instructions_window, text="OK", command=instructions_window.destroy).pack(pady=10)
+
+        
 
     def update_sampling_rate_label(self, value):
         self.sampling_rate_value_label.config(text=f"{int(float(value))} ms")
